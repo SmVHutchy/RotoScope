@@ -12,6 +12,7 @@
 
 import { FIELD_GLSL } from './field.ts';
 import { MAX_COPIES, REPEAT_GLSL } from './repeat.ts';
+import { RASTER_GLSL } from './raster.ts';
 import { SHAPE_GLSL } from './shapes.ts';
 import { MAX_SHAPES } from './graph.ts';
 
@@ -59,9 +60,15 @@ uniform float uRepeatScale;
 uniform float uRepeatRotation;
 uniform int uRampSource;
 
+uniform int uRasterMode;
+uniform float uRasterCell;
+uniform float uRasterAngle;
+uniform float uGrain;
+
 ${SHAPE_GLSL}
 ${FIELD_GLSL}
 ${REPEAT_GLSL}
+${RASTER_GLSL}
 
 /**
  * Die Werte kommen herein, nicht der Index.
@@ -138,13 +145,19 @@ void main() {
   vec3 banded = texture2D(uRamp, vec2(clamp(t, 0.0, 1.0), 0.5)).rgb;
   vec3 colour = mix(banded, uSeparator, uHasSeparator * step(0.5, rings.z));
 
+  vec3 result;
   if (distance <= 0.0) {
-    gl_FragColor = vec4(colour, 1.0);
-    return;
+    result = colour;
+  } else {
+    float falloff = uGlow <= 0.0
+      ? 0.0
+      : exp(-distance / max(1e-4, uGlow * uSpacing * 4.0));
+    result = mix(background, colour, falloff);
   }
 
-  float falloff = uGlow <= 0.0
-    ? 0.0
-    : exp(-distance / max(1e-4, uGlow * uSpacing * 4.0));
-  gl_FragColor = vec4(mix(background, colour, falloff), 1.0);
+  // Das Raster kommt zuletzt: es liest die fertige Flaeche, nicht das rohe Feld.
+  gl_FragColor = vec4(
+    fieldRaster(result, background, gl_FragCoord.xy, uRasterMode, uRasterCell, uRasterAngle, uGrain),
+    1.0
+  );
 }`;

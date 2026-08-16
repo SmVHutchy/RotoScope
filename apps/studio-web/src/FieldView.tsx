@@ -15,6 +15,7 @@ import {
   type FieldGraph,
   type CombineMode,
   type MirrorAxis,
+  type RasterMode,
 } from '@rotoscope/field-core';
 import { Inspector } from './Inspector';
 import { FieldRenderer } from './field/FieldRenderer';
@@ -25,6 +26,7 @@ import type { ParamValue } from './gl/transition';
 const SIZE = 1024;
 const COMBINE_MODES: CombineMode[] = ['union', 'smooth', 'subtract', 'intersect'];
 const MIRROR_AXES: MirrorAxis[] = ['none', 'x', 'y', 'both'];
+const RASTER_MODES: RasterMode[] = ['none', 'dots', 'blocks'];
 
 export function FieldView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -162,6 +164,22 @@ export function FieldView() {
             </select>
           </label>
         </div>
+
+        <label className="field">
+          <span className="field__label">Raster</span>
+          <select
+            value={graph.raster.mode}
+            onChange={(e) =>
+              update({ ...graph, raster: { ...graph.raster, mode: e.target.value as RasterMode } })
+            }
+          >
+            {RASTER_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {mode}
+              </option>
+            ))}
+          </select>
+        </label>
 
         <Inspector specs={specs} values={values} onChange={onParam} />
 

@@ -13,6 +13,7 @@ import { combine, mirror, sampleRings, type CombineMode, type RingProfile } from
 import { evaluateShape, type ShapeKind, type Vec2 } from './shapes.ts';
 import { sampleRamp, type PalettePreset } from './palette.ts';
 import { copyCount, copyTransform, NO_REPEAT, type RepeatSpec } from './repeat.ts';
+import type { RasterSpec } from './raster.ts';
 import type { Rgb } from '@rotoscope/grade-core';
 
 /** Obergrenze aus Spec §4 — begrenzt durch die Uniform-Kapazitaet von WebGL2. */
@@ -40,6 +41,8 @@ export type FieldGraph = {
   glow: number;
   /** Vervielfaeltigung der Formen (Referenzbild 3). */
   repeat: RepeatSpec;
+  /** Punkt-, Block- und Kornraster (Referenzbild 7 und 8). */
+  raster: RasterSpec;
 };
 
 /** Formparameter aus der einheitlichen Darstellung ableiten. */

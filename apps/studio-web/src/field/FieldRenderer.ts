@@ -14,6 +14,7 @@ import {
   COMBINE_INDEX,
   MIRROR_INDEX,
   copyCount,
+  RASTER_INDEX,
   type FieldGraph,
 } from '@rotoscope/field-core';
 
@@ -142,6 +143,12 @@ export class FieldRenderer {
     gl.uniform1f(this.location('uRepeatScale'), repeat.scale);
     gl.uniform1f(this.location('uRepeatRotation'), repeat.rotation);
     gl.uniform1i(this.location('uRampSource'), graph.palette.source === 'index' ? 1 : 0);
+
+    const raster = graph.raster;
+    gl.uniform1i(this.location('uRasterMode'), RASTER_INDEX[raster.mode]);
+    gl.uniform1f(this.location('uRasterCell'), raster.cell);
+    gl.uniform1f(this.location('uRasterAngle'), raster.angle);
+    gl.uniform1f(this.location('uGrain'), raster.grain);
 
     const palette = graph.palette;
     const gradient = Array.isArray(palette.background[0]);

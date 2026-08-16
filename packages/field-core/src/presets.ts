@@ -8,6 +8,7 @@
 
 import { presetByName } from './palette.ts';
 import { NO_REPEAT } from './repeat.ts';
+import { NO_RASTER } from './raster.ts';
 import type { FieldGraph } from './graph.ts';
 
 export type FieldPreset = { name: string; note: string; graph: FieldGraph };
@@ -29,6 +30,7 @@ export const FIELD_PRESETS: FieldPreset[] = [
       palette: presetByName('Amoebe'),
       glow: 0,
       repeat: NO_REPEAT,
+      raster: NO_RASTER,
     },
   },
   {
@@ -45,6 +47,7 @@ export const FIELD_PRESETS: FieldPreset[] = [
       palette: presetByName('Club'),
       glow: 0.5,
       repeat: NO_REPEAT,
+      raster: NO_RASTER,
     },
   },
   {
@@ -62,6 +65,7 @@ export const FIELD_PRESETS: FieldPreset[] = [
       palette: presetByName('Neon'),
       glow: 0.85,
       repeat: NO_REPEAT,
+      raster: NO_RASTER,
     },
   },
   {
@@ -81,6 +85,7 @@ export const FIELD_PRESETS: FieldPreset[] = [
       palette: presetByName('Rohrpost'),
       glow: 0,
       repeat: NO_REPEAT,
+      raster: NO_RASTER,
     },
   },
   {
@@ -97,6 +102,41 @@ export const FIELD_PRESETS: FieldPreset[] = [
       palette: presetByName('Stapel'),
       glow: 0,
       repeat: { count: 16, offset: [0, -0.075], scale: 0.995, rotation: 0 },
+      raster: { ...NO_RASTER, grain: 0.08 },
+    },
+  },
+  {
+    name: 'Halbton',
+    note: 'Referenzbild 7: Punktraster traegt die Form, Punktgroesse folgt der Helligkeit',
+    graph: {
+      shapes: [
+        { kind: 'capsule', center: [0, 0.1], size: [2.2, 0.28], exponent: 2, rotation: -0.35 },
+      ],
+      combineMode: 'union',
+      smoothness: 0,
+      mirrorAxis: 'none',
+      rings: { spacing: 0.22, curve: 1.15, hardness: 0, line: 0, stagger: 0 },
+      palette: presetByName('Halbton'),
+      glow: 1.1,
+      repeat: NO_REPEAT,
+      raster: { mode: 'dots', cell: 9, angle: 0.4, grain: 0 },
+    },
+  },
+  {
+    name: 'Bitmap',
+    note: 'Referenzbild 8: Blockdithering ueber einem Verlauf, sparsam gesetzt',
+    graph: {
+      shapes: [
+        { kind: 'superellipse', center: [-0.2, -0.3], size: [0.7, 0.22], exponent: 1.4, rotation: 0.2 },
+      ],
+      combineMode: 'union',
+      smoothness: 0,
+      mirrorAxis: 'none',
+      rings: { spacing: 0.3, curve: 1, hardness: 0, line: 0, stagger: 0 },
+      palette: presetByName('Bitmap'),
+      glow: 0.7,
+      repeat: NO_REPEAT,
+      raster: { mode: 'blocks', cell: 14, angle: 0, grain: 0 },
     },
   },
 ];

@@ -208,3 +208,40 @@ test('Stapel-Preset faerbt ueber den Kopienindex, nicht ueber den Abstand', asyn
   const farbeUnten = shadeField(graph, [0, -0.4]);
   assert.notDeepEqual(farbeOben, farbeUnten);
 });
+
+test('Halbton: Punktflaeche folgt der Helligkeit, nicht der Radius', async () => {
+  const { dotRadius, luminance, bayer4 } = await import('../src/raster.ts');
+
+  // Die Wurzel sorgt dafuer, dass die FLAECHE linear mit der Helligkeit waechst.
+  // Bei halber Helligkeit muss die Flaeche halb so gross sein.
+  const r1 = dotRadius(1);
+  const rHalb = dotRadius(0.5);
+  const flaechenverhaeltnis = (rHalb * rHalb) / (r1 * r1);
+  assert.ok(Math.abs(flaechenverhaeltnis - 0.5) < 1e-9, `Flaeche ${flaechenverhaeltnis}`);
+
+  assert.equal(dotRadius(0), 0, 'Schwarz gibt keinen Punkt');
+  assert.ok(Math.abs(luminance([1, 1, 1]) - 1) < 1e-9, 'Weiss ist 1');
+  assert.ok(luminance([0, 1, 0]) > luminance([0, 0, 1]), 'Gruen wiegt schwerer als Blau');
+});
+
+test('Bayer-Matrix deckt den Wertebereich gleichmaessig ab', async () => {
+  const { bayer4 } = await import('../src/raster.ts');
+  const werte = new Set<number>();
+  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) werte.add(bayer4(x, y));
+  assert.equal(werte.size, 16, 'alle 16 Schwellen verschieden');
+  assert.ok(Math.min(...werte) > 0 && Math.max(...werte) < 1, 'im offenen Bereich 0..1');
+  // Muss sich alle 4 Pixel wiederholen.
+  assert.equal(bayer4(5, 6), bayer4(1, 2));
+  assert.equal(bayer4(-3, -2), bayer4(1, 2));
+});
+
+test('Raster-Presets sind vollstaendig belegt', () => {
+  const halbton = fieldPresetByName('Halbton').graph;
+  const bitmap = fieldPresetByName('Bitmap').graph;
+  assert.equal(halbton.raster.mode, 'dots');
+  assert.equal(bitmap.raster.mode, 'blocks');
+  for (const preset of FIELD_PRESETS) {
+    assert.ok(preset.graph.raster, `${preset.name} ohne Raster`);
+    assert.ok(preset.graph.repeat, `${preset.name} ohne Repeater`);
+  }
+});

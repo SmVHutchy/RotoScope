@@ -84,6 +84,22 @@ export const PRESETS: PalettePreset[] = [
     separator: hex('#ff2d0d'),
   },
   {
+    name: 'Halbton',
+    background: hex('#0a0a0a'),
+    stops: [hex('#fcbf49'), hex('#f77f00'), hex('#d62828')],
+    source: 'distance',
+    repeat: 3,
+    separator: null,
+  },
+  {
+    name: 'Bitmap',
+    background: [hex('#b8d96b'), hex('#7ab648')],
+    stops: [hex('#111111')],
+    source: 'distance',
+    repeat: null,
+    separator: null,
+  },
+  {
     name: 'Riso',
     background: hex('#e8412a'),
     stops: [hex('#111111')],

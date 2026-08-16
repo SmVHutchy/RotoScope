@@ -40,6 +40,9 @@ export function fieldSpecs(graph: FieldGraph): ParamSpec[] {
     { name: 'repeat.offset', type: 'vec2', value: [...graph.repeat.offset], isColor: false },
     { name: 'repeat.scale', type: 'float', value: graph.repeat.scale, min: 0.8, max: 1.2, step: 0.001, isColor: false },
     { name: 'repeat.rotation', type: 'float', value: graph.repeat.rotation, min: -0.5, max: 0.5, step: 0.005, isColor: false },
+    { name: 'raster.cell', type: 'float', value: graph.raster.cell, min: 2, max: 40, step: 0.5, isColor: false },
+    { name: 'raster.angle', type: 'float', value: graph.raster.angle, min: -1.6, max: 1.6, step: 0.01, isColor: false },
+    { name: 'raster.grain', type: 'float', value: graph.raster.grain, min: 0, max: 0.5, step: 0.005, isColor: false },
   ];
 
   graph.shapes.forEach((shape, index) => {
@@ -60,9 +63,15 @@ export function applyFieldParam(graph: FieldGraph, path: FieldPath, value: Param
     ...graph,
     rings: { ...graph.rings },
     repeat: { ...graph.repeat, offset: [...graph.repeat.offset] },
+    raster: { ...graph.raster },
     shapes: graph.shapes.map((s) => ({ ...s })),
   };
   const [head, tail] = path.split('.');
+
+  if (head === 'raster') {
+    (next.raster as unknown as Record<string, number>)[tail] = Number(value);
+    return next;
+  }
 
   if (head === 'repeat') {
     if (tail === 'offset') {
