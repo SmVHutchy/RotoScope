@@ -42,6 +42,10 @@ Transition-Ansicht abgelöst und liegt in Commit `fd6c7a5`, falls sie zurückkom
 | Zeitachse über GSAP: Timeline, Stagger, Scrub | ⬜ |
 | Headless rendern über `rotoc` (ohne Browser) | ⬜ braucht eine GL-Umgebung in Node |
 
+**Bewegte Übergänge:** A spielt seine letzten Frames bis zum gewählten Ausstiegspunkt, B seine
+ersten ab dem Einstiegspunkt — beide laufen während der Überblendung weiter. Ein Standbild-Übergang
+ist derselbe Weg mit stehenden Folgen, kein zweiter Codepfad.
+
 **Export:** Kodiert wird im Browser über WebCodecs — derselbe Renderer, der die Vorschau zeichnet.
 Vorschau und Ausgabe können damit nicht auseinanderlaufen. Die geschriebene Datei wird sofort wieder
 geöffnet und auf Spur, Maße und Laufzeit geprüft; schlägt das fehl, bricht der Export ab, statt eine

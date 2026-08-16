@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildDocument, hashDocument, parse, serialize, toMir, type BuildInput } from '@rotoscope/motif-lang';
 import { download } from './export';
+import { FPS } from './project';
 
 const STORAGE_KEY = 'rotoscope.snapshots.v1';
 
@@ -77,7 +78,7 @@ export function MotifPanel({ input, onLoad }: Props) {
       }
       onLoad({
         glTransition: mir.source.replace(/^gl:/, ''),
-        durationFrames: mir.durationMs ? Math.round((mir.durationMs / 1000) * 25) : 24,
+        durationFrames: mir.durationMs ? Math.round((mir.durationMs / 1000) * FPS) : 24,
         ease: mir.ease.replace(/\(.*\)$/, ''),
         params,
       });

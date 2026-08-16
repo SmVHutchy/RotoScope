@@ -22,15 +22,17 @@ import {
 } from 'mediabunny';
 import type { EaseFn } from './ease';
 import type { ParamValue, TransitionRenderer } from './gl/transition';
+import { indexAt, type Sequence } from './sequence';
 
 export type ExportOptions = {
   renderer: TransitionRenderer;
   canvas: HTMLCanvasElement;
+  /** Die beiden Frame-Folgen — bei Standbild-Übergängen stehen sie still. */
+  sequence: Sequence;
   params: Record<string, ParamValue>;
   ease: EaseFn;
-  durationFrames: number;
   fps: number;
-  /** Standbilder am Anfang und Ende, damit der Schnitt lesbar ist. */
+  /** Vor- und Nachlauf, damit der Schnitt lesbar ist. */
   holdFrames?: number;
   onProgress?: (done: number, total: number) => void;
 };
@@ -68,9 +70,10 @@ async function verify(blob: Blob): Promise<ExportResult['verified']> {
 }
 
 export async function exportTransition(options: ExportOptions): Promise<ExportResult> {
-  const { renderer, canvas, params, ease, durationFrames, fps, onProgress } = options;
+  const { renderer, canvas, sequence, params, ease, fps, onProgress } = options;
   const hold = options.holdFrames ?? Math.round(fps * 0.25);
-  const total = hold + durationFrames + hold;
+  const duration = sequence.length;
+  const total = hold + duration + hold;
 
   const output = new Output({ format: new Mp4OutputFormat(), target: new BufferTarget() });
   const source = new CanvasSource(canvas, { codec: 'avc', quality: new Quality('high') });
@@ -82,8 +85,9 @@ export async function exportTransition(options: ExportOptions): Promise<ExportRe
 
   for (let index = 0; index < total; index++) {
     // Vorlauf haelt bei 0, Nachlauf bei 1 — dazwischen laeuft die Kurve.
-    const linear =
-      index < hold ? 0 : index >= hold + durationFrames ? 1 : (index - hold) / durationFrames;
+    const linear = index < hold ? 0 : index >= hold + duration ? 1 : (index - hold) / duration;
+    const frame = indexAt(sequence, linear);
+    renderer.setFrames(sequence.a[frame], sequence.b[frame]);
     renderer.render(ease(linear), params);
 
     // add() awaiten: es respektiert den Gegendruck von Encoder und Writer.

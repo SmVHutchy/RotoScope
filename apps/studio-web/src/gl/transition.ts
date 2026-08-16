@@ -85,7 +85,14 @@ export class TransitionRenderer {
   private locations = new Map<string, WebGLUniformLocation | null>();
 
   constructor(private canvas: HTMLCanvasElement) {
-    const gl = canvas.getContext('webgl2', { premultipliedAlpha: false, antialias: false });
+    // `preserveDrawingBuffer`, weil der Canvas-Inhalt auch nach dem Compositing noch
+    // gebraucht wird: der Export liest ihn aus, und ohne diese Zusage liefert eine
+    // Aufnahme, die nicht im selben Task wie das Zeichnen passiert, ein leeres Bild.
+    const gl = canvas.getContext('webgl2', {
+      premultipliedAlpha: false,
+      antialias: false,
+      preserveDrawingBuffer: true,
+    });
     if (!gl) throw new Error('WebGL2 steht nicht zur Verfügung.');
     this.gl = gl;
 
@@ -139,35 +146,31 @@ export class TransitionRenderer {
   }
 
   /**
-   * Beide Seiten des Uebergangs setzen.
+   * Ausgabeformat und Seitenverhaeltnisse festlegen. Einmal je Clip-Paar.
    *
-   * Die Seitenverhaeltnisse werden je Bild uebergeben, nicht vom Ausgabeformat
-   * abgeleitet: A und B duerfen aus verschiedenen Clips mit verschiedenen Formaten
-   * kommen. Der gl-transitions-Rahmen korrigiert das ueber `_fromR` und `_toR` --
-   * setzt man dort beide gleich, wird ein hochkantes B in ein 16:9-Ziel gequetscht.
+   * Die Seitenverhaeltnisse kommen je Quelle herein, nicht aus dem Ausgabeformat:
+   * A und B duerfen verschiedene Formate haben. Der gl-transitions-Rahmen korrigiert
+   * das ueber `_fromR` und `_toR` -- setzt man dort beide gleich, wird ein hochkantes
+   * B in ein 16:9-Ziel gequetscht.
    */
-  setImages(
-    from: TexImageSource,
-    to: TexImageSource,
-    width: number,
-    height: number,
-    fromRatio = width / height,
-    toRatio = width / height,
-  ): void {
-    const gl = this.gl;
+  setSize(width: number, height: number, fromRatio = width / height, toRatio = width / height): void {
     this.canvas.width = width;
     this.canvas.height = height;
+    this.fromRatio = fromRatio;
+    this.toRatio = toRatio;
+  }
 
+  /** Beide Seiten des Uebergangs setzen. Laeuft pro Frame, wenn die Quellen sich bewegen. */
+  setFrames(from: TexImageSource, to: TexImageSource): void {
+    const gl = this.gl;
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     for (const [texture, image] of [
       [this.fromTex, from],
       [this.toTex, to],
     ] as const) {
       gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
     }
-    this.fromRatio = fromRatio;
-    this.toRatio = toRatio;
   }
 
   render(progress: number, params: Record<string, ParamValue>): void {

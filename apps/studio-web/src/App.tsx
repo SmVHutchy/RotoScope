@@ -6,6 +6,8 @@ import { EASE_NAMES, easeByName } from './ease';
 import { download, exportTransition } from './export';
 import { TransitionRenderer, type ParamValue } from './gl/transition';
 import { loadClip, type ClipInfo, type LoadedClip } from './media';
+import { FPS } from './project';
+import { closeSequence, indexAt, loadSequence, type Sequence } from './sequence';
 import { byName, defaultsOf, specsOf, transitions } from './transitions';
 
 type Slot = 'a' | 'b';
@@ -76,6 +78,7 @@ export function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<TransitionRenderer | null>(null);
   const clipsRef = useRef<{ a: LoadedClip | null; b: LoadedClip | null }>({ a: null, b: null });
+  const sequenceRef = useRef<Sequence | null>(null);
 
   // Beide Seiten getrennt: A liefert den Ausstiegsframe, B den Einstiegsframe.
   const [infos, setInfos] = useState<{ a: ClipInfo | null; b: ClipInfo | null }>({ a: null, b: null });
@@ -124,13 +127,16 @@ export function App() {
     setPlaying(false);
     setExporting({ phase: 'running', percent: 0 });
     try {
+      const sequence = sequenceRef.current;
+      if (!sequence) return;
+
       const result = await exportTransition({
         renderer,
         canvas,
+        sequence,
         params,
         ease: easeByName(ease),
-        durationFrames,
-        fps: 25,
+        fps: FPS,
         onProgress: (done, total) =>
           setExporting({ phase: 'running', percent: Math.round((done / total) * 100) }),
       });
@@ -148,11 +154,20 @@ export function App() {
     }
   }, [durationFrames, ease, params, transition.name]);
 
-  /** Ein Renderdurchgang. Getrennt gehalten, damit ihn Regler und Animation teilen. */
+  /**
+   * Ein Renderdurchgang: passenden Frame aus beiden Folgen holen und zeichnen.
+   *
+   * Regler, Wiedergabe und Export teilen sich diesen Weg — deshalb kann die
+   * Vorschau gar nicht anders aussehen als die exportierte Datei.
+   */
   const draw = useCallback((p: number, values: Record<string, ParamValue>) => {
     const renderer = rendererRef.current;
-    if (!renderer) return;
+    const sequence = sequenceRef.current;
+    if (!renderer || !sequence) return;
+
     const started = performance.now();
+    const frame = indexAt(sequence, p);
+    renderer.setFrames(sequence.a[frame], sequence.b[frame]);
     renderer.render(p, values);
     setFrameMs(Math.round((performance.now() - started) * 100) / 100);
   }, []);
@@ -199,32 +214,69 @@ export function App() {
 
     let cancelled = false;
     void (async () => {
-      const [frameA, frameB] = await Promise.all([from.frameAt(times.a), to.frameAt(times.b)]);
-      if (cancelled) return;
+      setBusy(true);
+      try {
+        const sequence = await loadSequence({
+          clipA: from,
+          clipB: to,
+          timeA: times.a,
+          timeB: times.b,
+          durationFrames,
+          fps: FPS,
+        });
+        if (cancelled) {
+          closeSequence(sequence);
+          return;
+        }
 
-      const renderer = (rendererRef.current ??= new TransitionRenderer(canvas));
-      renderer.setImages(
-        frameA.canvas,
-        frameB.canvas,
-        from.info.width,
-        from.info.height,
-        from.info.width / from.info.height,
-        to.info.width / to.info.height,
-      );
-      setFramesEpoch((epoch) => epoch + 1);
+        const renderer = (rendererRef.current ??= new TransitionRenderer(canvas));
+        renderer.setSize(
+          from.info.width,
+          from.info.height,
+          from.info.width / from.info.height,
+          to.info.width / to.info.height,
+        );
+
+        closeSequence(sequenceRef.current);
+        sequenceRef.current = sequence;
+        setFramesEpoch((epoch) => epoch + 1);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
     })();
 
     // Beim schnellen Ziehen laufen mehrere Dekodierungen; nur die letzte zählt.
     return () => {
       cancelled = true;
     };
-  }, [infos.a, infos.b, times.a, times.b]);
+  }, [infos.a, infos.b, times.a, times.b, durationFrames]);
 
-  /** Neue Frames im Renderer: einmal neu zeichnen, Parameter unangetastet lassen. */
+  /**
+   * Shader übersetzen und zeichnen.
+   *
+   * Hängt bewusst auch an `framesEpoch`: der Renderer entsteht erst im asynchronen
+   * Teil des Dekodierens. Ohne diese Abhängigkeit liefe `use()` beim ersten Laden
+   * ins Leere, das Programm fehlte, und die Fläche bliebe schwarz.
+   */
   useEffect(() => {
-    if (framesEpoch > 0) draw(progress, params);
+    const renderer = rendererRef.current;
+    if (!renderer || framesEpoch === 0) return;
+    try {
+      renderer.use(transition);
+      draw(progress, params);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [framesEpoch]);
+  }, [transition, framesEpoch]);
+
+  /** Übergangswechsel setzt die Parameter auf die Vorgaben — Frameswechsel nicht. */
+  useEffect(() => {
+    setParams(defaultsOf(transition));
+  }, [transition]);
 
   useEffect(() => {
     const url = new URLSearchParams(window.location.search).get('clip');
@@ -244,29 +296,13 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** Übergang gewechselt: neu übersetzen, Defaults übernehmen, sofort zeichnen. */
-  useEffect(() => {
-    const renderer = rendererRef.current;
-    if (!renderer || !info) return;
-    try {
-      renderer.use(transition);
-      const defaults = defaultsOf(transition);
-      setParams(defaults);
-      draw(progress, defaults);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transition, info]);
-
   // Wiedergabe mit echter Dauer und echter Kurve: `duration` und `ease` aus der
   // .motif-Datei wirken hier, sie sind keine Dekoration.
   useEffect(() => {
     if (!playing) return;
     let raf = 0;
     const started = performance.now();
-    const durationMs = (durationFrames / 25) * 1000;
+    const durationMs = (durationFrames / FPS) * 1000;
     const curve = easeByName(ease);
 
     const tick = (now: number) => {
