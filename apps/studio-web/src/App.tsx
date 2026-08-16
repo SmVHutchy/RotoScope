@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Inspector } from './Inspector';
+import { MotifPanel } from './MotifPanel';
+import { EASE_NAMES, easeByName } from './ease';
 import { TransitionRenderer, type ParamValue } from './gl/transition';
 import { loadClip, type ClipInfo, type Frame } from './media';
 import { byName, defaultsOf, specsOf, transitions } from './transitions';
@@ -83,6 +85,8 @@ export function App() {
   const [progress, setProgress] = useState(0.5);
   const [playing, setPlaying] = useState(false);
   const [frameMs, setFrameMs] = useState<number | null>(null);
+  const [durationFrames, setDurationFrames] = useState(24);
+  const [ease, setEase] = useState('smooth');
 
   const transition = useMemo(() => byName(name), [name]);
   const specs = useMemo(() => specsOf(transition), [transition]);
@@ -161,21 +165,25 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transition, info]);
 
+  // Wiedergabe mit echter Dauer und echter Kurve: `duration` und `ease` aus der
+  // .motif-Datei wirken hier, sie sind keine Dekoration.
   useEffect(() => {
     if (!playing) return;
     let raf = 0;
     const started = performance.now();
-    const DURATION = 1400;
+    const durationMs = (durationFrames / 25) * 1000;
+    const curve = easeByName(ease);
 
     const tick = (now: number) => {
-      const p = ((now - started) % DURATION) / DURATION;
-      setProgress(p);
-      draw(p, params);
+      const linear = ((now - started) % durationMs) / durationMs;
+      const eased = curve(linear);
+      setProgress(eased);
+      draw(eased, params);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, params, draw]);
+  }, [playing, params, draw, durationFrames, ease]);
 
   const onParam = useCallback(
     (key: string, value: ParamValue) => {
@@ -265,7 +273,51 @@ export function App() {
           </button>
         </div>
 
+        <div className="field field--row">
+          <label className="field">
+            <span className="field__label">Dauer</span>
+            <input
+              type="number"
+              min={1}
+              max={240}
+              value={durationFrames}
+              onChange={(e) => setDurationFrames(Math.max(1, Number(e.target.value)))}
+            />
+          </label>
+          <label className="field">
+            <span className="field__label">ease</span>
+            <select value={ease} onChange={(e) => setEase(e.target.value)}>
+              {EASE_NAMES.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
         <Inspector specs={specs} values={params} onChange={onParam} />
+
+        <MotifPanel
+          input={{
+            name: `${transition.name.toLowerCase()}_v1`,
+            glTransition: transition.name,
+            durationFrames,
+            ease,
+            params: params as Record<string, number | boolean | number[]>,
+          }}
+          onLoad={(loaded) => {
+            setName(loaded.glTransition);
+            setDurationFrames(loaded.durationFrames);
+            setEase(loaded.ease);
+            // Nach dem Wechsel des Übergangs setzt ein Effekt die Defaults; die
+            // geladenen Werte müssen danach greifen, sonst gewinnen die Defaults.
+            queueMicrotask(() => {
+              setParams(loaded.params as Record<string, ParamValue>);
+              draw(progress, loaded.params as Record<string, ParamValue>);
+            });
+          }}
+        />
 
         <div className="inspector__foot">
           <div>

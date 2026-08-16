@@ -34,8 +34,12 @@ Transition-Ansicht abgelöst und liegt in Commit `fd6c7a5`, falls sie zurückkom
 | WebGL2-Runtime ([ADR 004](docs/decisions/004-webgl2-statt-webgpu.md)) | ✅ < 1 ms pro Frame bei 1280×720 |
 | Parameter-Inspector, jeder Parameter live (UC-C1) | ✅ Tweakpane, automatisch aus den Uniforms |
 | Übergang zwischen zwei echten Frames (UC-B1) | ✅ |
-| `.motif`-Format: lesen, schreiben, approven (UC-C2/C3) | ⬜ als Nächstes |
-| Zeitachse über GSAP, Ease und Dauer (UC-B3) | ⬜ |
+| MOTIF v0.1: Lexer, Parser, Serialisierer, MIR (UC-C3) | ✅ 12 Tests, `npm test` |
+| `.motif` live im Panel, speichern, laden | ✅ |
+| Approve-Snapshots mit Hash statt Presets (UC-C2) | ✅ inhaltsadressiert, wiederherstellbar |
+| Dauer und Ease wirken auf die Wiedergabe (UC-B3, Teil) | ✅ 6 Kurven inkl. Spring |
+| Zeitachse über GSAP: Timeline, Stagger, Scrub | ⬜ |
+| Headless rendern über `rotoc` | ⬜ als Nächstes |
 
 Ausprobieren: `npm run dev`, dann `http://localhost:5173/?clip=/dev-sample.mp4` — Übergang wählen,
 Regler ziehen, `progress` scrubben.

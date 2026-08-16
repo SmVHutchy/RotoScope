@@ -124,6 +124,101 @@ body {
   border-color: var(--muted);
 }
 
+.button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.field--row {
+  flex-direction: row;
+  gap: 0.6rem;
+}
+
+.field input[type='number'] {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0.3rem 0.4rem;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Die .motif-Datei ist Teil der Oberflaeche, nicht ein verstecktes Artefakt. */
+.motif {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+}
+
+.motif__bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.motif__actions {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.motif__text {
+  margin: 0;
+  padding: 0.6rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 0.68rem;
+  line-height: 1.55;
+  color: var(--fg);
+  white-space: pre;
+  overflow-x: auto;
+  max-height: 220px;
+}
+
+.motif__message {
+  font-size: 0.7rem;
+  color: var(--wait);
+}
+
+.motif__snapshots {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.snapshot {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.5rem;
+  align-items: baseline;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0.3rem 0.45rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.snapshot:hover {
+  border-color: var(--muted);
+}
+
+.snapshot--current {
+  border-color: var(--ok);
+}
+
+.snapshot code {
+  color: var(--fg);
+  font-family: ui-monospace, Consolas, monospace;
+}
+
 .app__head {
   display: flex;
   align-items: center;

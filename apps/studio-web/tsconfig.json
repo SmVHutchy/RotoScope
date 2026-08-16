@@ -10,9 +10,12 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noEmit": true,
+    // motif-lang wird als Quelle eingebunden und mit .ts-Endungen importiert,
+    // damit Node die Tests ohne Buildschritt direkt ausfuehren kann.
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["src"]
+  "include": ["src", "../../packages/motif-lang/src"]
 }
