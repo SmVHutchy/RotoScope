@@ -9,6 +9,7 @@
 import { presetByName } from './palette.ts';
 import { NO_REPEAT } from './repeat.ts';
 import { NO_RASTER } from './raster.ts';
+import { NO_MOTION } from './motion.ts';
 import type { FieldGraph } from './graph.ts';
 
 export type FieldPreset = { name: string; note: string; graph: FieldGraph };
@@ -31,6 +32,7 @@ export const FIELD_PRESETS: FieldPreset[] = [
       glow: 0,
       repeat: NO_REPEAT,
       raster: NO_RASTER,
+      motion: { ...NO_MOTION, drift: 1 },
     },
   },
   {
@@ -48,6 +50,7 @@ export const FIELD_PRESETS: FieldPreset[] = [
       glow: 0.5,
       repeat: NO_REPEAT,
       raster: NO_RASTER,
+      motion: { ...NO_MOTION, drift: 1 },
     },
   },
   {
@@ -66,6 +69,7 @@ export const FIELD_PRESETS: FieldPreset[] = [
       glow: 0.85,
       repeat: NO_REPEAT,
       raster: NO_RASTER,
+      motion: { ...NO_MOTION, drift: 1 },
     },
   },
   {
@@ -86,6 +90,7 @@ export const FIELD_PRESETS: FieldPreset[] = [
       glow: 0,
       repeat: NO_REPEAT,
       raster: NO_RASTER,
+      motion: { ...NO_MOTION, drift: 1 },
     },
   },
   {
@@ -103,6 +108,7 @@ export const FIELD_PRESETS: FieldPreset[] = [
       glow: 0,
       repeat: { count: 16, offset: [0, -0.075], scale: 0.995, rotation: 0 },
       raster: { ...NO_RASTER, grain: 0.08 },
+      motion: { ...NO_MOTION, pulse: 0.06 },
     },
   },
   {
@@ -120,6 +126,7 @@ export const FIELD_PRESETS: FieldPreset[] = [
       glow: 1.1,
       repeat: NO_REPEAT,
       raster: { mode: 'dots', cell: 9, angle: 0.4, grain: 0 },
+      motion: { ...NO_MOTION, drift: 2 },
     },
   },
   {
@@ -137,6 +144,7 @@ export const FIELD_PRESETS: FieldPreset[] = [
       glow: 0.7,
       repeat: NO_REPEAT,
       raster: { mode: 'blocks', cell: 14, angle: 0, grain: 0 },
+      motion: { ...NO_MOTION, drift: 1, wobble: 0.05 },
     },
   },
 ];

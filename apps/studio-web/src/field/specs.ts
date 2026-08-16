@@ -43,6 +43,12 @@ export function fieldSpecs(graph: FieldGraph): ParamSpec[] {
     { name: 'raster.cell', type: 'float', value: graph.raster.cell, min: 2, max: 40, step: 0.5, isColor: false },
     { name: 'raster.angle', type: 'float', value: graph.raster.angle, min: -1.6, max: 1.6, step: 0.01, isColor: false },
     { name: 'raster.grain', type: 'float', value: graph.raster.grain, min: 0, max: 0.5, step: 0.005, isColor: false },
+    // drift und spin ganzzahlig: nur dann schliesst die Schleife nahtlos.
+    { name: 'motion.drift', type: 'float', value: graph.motion.drift, min: -4, max: 4, step: 1, isColor: false },
+    { name: 'motion.spin', type: 'float', value: graph.motion.spin, min: -2, max: 2, step: 1, isColor: false },
+    { name: 'motion.pulse', type: 'float', value: graph.motion.pulse, min: 0, max: 0.4, step: 0.005, isColor: false },
+    { name: 'motion.wobble', type: 'float', value: graph.motion.wobble, min: 0, max: 0.3, step: 0.005, isColor: false },
+    { name: 'motion.durationFrames', type: 'float', value: graph.motion.durationFrames, min: 12, max: 300, step: 1, isColor: false },
   ];
 
   graph.shapes.forEach((shape, index) => {
@@ -64,9 +70,15 @@ export function applyFieldParam(graph: FieldGraph, path: FieldPath, value: Param
     rings: { ...graph.rings },
     repeat: { ...graph.repeat, offset: [...graph.repeat.offset] },
     raster: { ...graph.raster },
+    motion: { ...graph.motion },
     shapes: graph.shapes.map((s) => ({ ...s })),
   };
   const [head, tail] = path.split('.');
+
+  if (head === 'motion') {
+    (next.motion as unknown as Record<string, number>)[tail] = Number(value);
+    return next;
+  }
 
   if (head === 'raster') {
     (next.raster as unknown as Record<string, number>)[tail] = Number(value);

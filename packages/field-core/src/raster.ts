@@ -97,7 +97,9 @@ vec3 fieldRaster(vec3 colour, vec3 background, vec2 fragCoord,
       vec2 offset = fract(grid) - 0.5;
       float radius = sqrt(clamp(value, 0.0, 1.0)) * 0.5;
       float d = length(offset) - radius;
-      float coverage = 1.0 - smoothstep(-0.03, 0.03, d);
+      // Feste Kantenbreite treppt bei kleinen Zellen; die Ableitung passt sich an.
+      float edge = max(fwidth(d), 0.004);
+      float coverage = 1.0 - smoothstep(-edge, edge, d);
       out_ = mix(background, colour, coverage);
     } else {
       out_ = value > fieldBayer(grid) ? colour : background;

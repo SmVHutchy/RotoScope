@@ -86,12 +86,24 @@ const smoothstep = (edge0: number, edge1: number, x: number) => {
   return t * t * (3 - 2 * t);
 };
 
-export function sampleRings(distance: number, profile: RingProfile): RingSample {
+/**
+ * `driftBands` verschiebt die Baender — **im Bandraum, nicht im Abstand**.
+ *
+ * Das ist keine Feinheit: bei einer Abstandskurve ungleich 1 entspricht ein
+ * konstanter Abstandsversatz keiner ganzen Bandzahl, und die Schleife schliesst
+ * nicht mehr. Der Loop-Test faellt genau darauf herein, wenn man es andersherum
+ * baut — hier verschoben, ist eine ganzzahlige Wanderung immer nahtlos.
+ */
+export function sampleRings(
+  distance: number,
+  profile: RingProfile,
+  driftBands = 0,
+): RingSample {
   const spacing = Math.max(1e-4, profile.spacing);
   const normalized = Math.abs(distance) / spacing;
 
   // Die Kurve staucht oder dehnt den Rhythmus nach aussen. 1 = gleichabstaendig.
-  const shaped = normalized ** Math.max(0.05, profile.curve);
+  const shaped = normalized ** Math.max(0.05, profile.curve) - driftBands;
   const index = Math.floor(shaped);
   const fraction = shaped - index;
 
@@ -123,14 +135,27 @@ vec2 fieldMirror(vec2 p, int axis) {
 }
 
 // Gibt (index, fraction, separator) zurueck -- muss sich wie sampleRings verhalten.
-vec3 fieldRings(float distance, float spacing, float curve, float hardness, float line) {
+//
+// aaDistance ist die Breite eines Bildschirmpixels im Abstandsmass (fwidth).
+// Damit bekommt die Bandkante mindestens eine Pixelbreite Weichheit: ohne das
+// treppen die Linien sichtbar, weil eine harte Schwelle im Fragmentshader keine
+// Zwischenwerte kennt. Die TypeScript-Referenz hat das nicht -- sie tastet Punkte
+// ab und kennt keine Pixel; an den Kanten duerfen beide deshalb abweichen.
+vec3 fieldRings(float distance, float spacing, float curve, float hardness,
+                float line, float driftBands, float aaDistance) {
   float s = max(1e-4, spacing);
-  float shaped = pow(abs(distance) / s, max(0.05, curve));
+  float c = max(0.05, curve);
+  float normalized = abs(distance) / s;
+  float shaped = pow(normalized, c) - driftBands;
   float index = floor(shaped);
   float fraction = shaped - index;
 
+  // Pixelbreite vom Abstandsmass in den Bandraum umrechnen: das ist die Ableitung
+  // der Kurve an dieser Stelle.
+  float aaBands = c * pow(max(normalized, 1e-4), c - 1.0) / s * aaDistance;
+
   float halfLine = max(0.0, line) * 0.5;
-  float softness = (1.0 - clamp(hardness, 0.0, 1.0)) * 0.5 + 1e-4;
+  float softness = max((1.0 - clamp(hardness, 0.0, 1.0)) * 0.5, aaBands) + 1e-5;
   float edge = min(fraction, 1.0 - fraction);
   float separator = 1.0 - smoothstep(halfLine, halfLine + softness, edge);
 

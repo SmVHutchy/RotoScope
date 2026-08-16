@@ -245,3 +245,73 @@ test('Raster-Presets sind vollstaendig belegt', () => {
     assert.ok(preset.graph.repeat, `${preset.name} ohne Repeater`);
   }
 });
+
+test('Loop schliesst: Phase 1 zeigt dasselbe Bild wie Phase 0', async () => {
+  const { NO_MOTION } = await import('../src/motion.ts');
+  const basis = fieldPresetByName('Amoebe').graph;
+
+  // Ganzzahlige drift und spin, dazu Pulsieren und Rauschverzerrung -- also alle
+  // vier Bewegungsarten gleichzeitig.
+  const graph: FieldGraph = {
+    ...basis,
+    motion: { ...NO_MOTION, drift: 2, spin: 1, pulse: 0.15, wobble: 0.08 },
+  };
+
+  const punkte: [number, number][] = [[0, 0], [0.3, -0.2], [-0.7, 0.5], [1.1, 0.9]];
+  for (const punkt of punkte) {
+    const anfang = shadeField(graph, punkt, 0);
+    const ende = shadeField(graph, punkt, 1);
+    for (let i = 0; i < 3; i++) {
+      assert.ok(
+        Math.abs(anfang[i] - ende[i]) < 1e-9,
+        `bei ${punkt}: Kanal ${i} ${anfang[i]} gegen ${ende[i]}`,
+      );
+    }
+  }
+
+  // Gegenprobe ueber eine Flaeche, nicht ueber einen Punkt: ein einzelner Punkt kann
+  // bei beiden Phasen zufaellig im selben Band liegen und wuerde Stillstand vortaeuschen.
+  let veraendert = 0;
+  let geprueft = 0;
+  // Nur im Bereich der Form messen: der Hintergrund aendert sich nie und wuerde
+  // die Quote verwaessern.
+  for (let gx = -8; gx <= 8; gx++) {
+    for (let gy = -8; gy <= 8; gy++) {
+      const punkt: [number, number] = [(gx / 8) * 0.55, (gy / 8) * 0.9];
+      const start = shadeField(graph, punkt, 0);
+      const mitte = shadeField(graph, punkt, 0.5);
+      geprueft++;
+      if (start.some((v, i) => Math.abs(v - mitte[i]) > 1e-6)) veraendert++;
+    }
+  }
+  assert.ok(
+    veraendert > geprueft * 0.25,
+    `mitten im Durchlauf muessen sich viele Punkte aendern: ${veraendert} von ${geprueft}`,
+  );
+});
+
+test('Rauschen kehrt nach einer Umrundung zurueck', async () => {
+  const { motionTransform, NO_MOTION } = await import('../src/motion.ts');
+  const motion = { ...NO_MOTION, wobble: 0.2 };
+
+  // Genau das ist der Grund fuer die Kreisabtastung: entlang einer geraden
+  // Zeitachse abgetastet kaeme hier nie derselbe Wert heraus.
+  const anfang = motionTransform([0.4, 0.1], 0, motion);
+  const ende = motionTransform([0.4, 0.1], 1, motion);
+  assert.ok(Math.abs(anfang.point[0] - ende.point[0]) < 1e-12);
+  assert.ok(Math.abs(anfang.point[1] - ende.point[1]) < 1e-12);
+
+  const mitte = motionTransform([0.4, 0.1], 0.5, motion);
+  assert.ok(Math.abs(mitte.point[0] - anfang.point[0]) > 1e-6, 'dazwischen verschoben');
+});
+
+test('nicht ganzzahlige drift bricht die Schleife — und das ist bekannt', async () => {
+  const { NO_MOTION } = await import('../src/motion.ts');
+  const graph: FieldGraph = {
+    ...fieldPresetByName('Club').graph,
+    motion: { ...NO_MOTION, drift: 1.5 },
+  };
+  const anfang = shadeField(graph, [0.2, 0.1], 0);
+  const ende = shadeField(graph, [0.2, 0.1], 1);
+  assert.notDeepEqual(anfang, ende, 'halbe Baenderzahl kann nicht schliessen');
+});

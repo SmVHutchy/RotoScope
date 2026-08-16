@@ -113,7 +113,7 @@ export class FieldRenderer {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
   }
 
-  render(graph: FieldGraph, time = 0): void {
+  render(graph: FieldGraph, phase = 0): void {
     const gl = this.gl;
     gl.useProgram(this.program);
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
@@ -129,7 +129,7 @@ export class FieldRenderer {
     gl.uniform1i(this.location('uMirror'), MIRROR_INDEX[graph.mirrorAxis]);
 
     gl.uniform2f(this.location('uResolution'), this.canvas.width, this.canvas.height);
-    gl.uniform1f(this.location('uTime'), time);
+    gl.uniform1f(this.location('uPhase'), phase);
     gl.uniform1f(this.location('uSpacing'), graph.rings.spacing);
     gl.uniform1f(this.location('uCurve'), graph.rings.curve);
     gl.uniform1f(this.location('uHardness'), graph.rings.hardness);
@@ -149,6 +149,12 @@ export class FieldRenderer {
     gl.uniform1f(this.location('uRasterCell'), raster.cell);
     gl.uniform1f(this.location('uRasterAngle'), raster.angle);
     gl.uniform1f(this.location('uGrain'), raster.grain);
+
+    const motion = graph.motion;
+    gl.uniform1f(this.location('uDrift'), motion.drift);
+    gl.uniform1f(this.location('uPulse'), motion.pulse);
+    gl.uniform1f(this.location('uSpin'), motion.spin);
+    gl.uniform1f(this.location('uWobble'), motion.wobble);
 
     const palette = graph.palette;
     const gradient = Array.isArray(palette.background[0]);

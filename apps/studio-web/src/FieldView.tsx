@@ -20,7 +20,8 @@ import {
 import { Inspector } from './Inspector';
 import { FieldRenderer } from './field/FieldRenderer';
 import { applyFieldParam, fieldSpecs } from './field/specs';
-import { download } from './export';
+import { download, exportFrames } from './export';
+import { FPS } from './project';
 import type { ParamValue } from './gl/transition';
 
 const SIZE = 1024;
@@ -36,6 +37,9 @@ export function FieldView() {
   const [graph, setGraph] = useState<FieldGraph>(() => fieldPresetByName(FIELD_PRESETS[0].name).graph);
   const [error, setError] = useState<string | null>(null);
   const [frameMs, setFrameMs] = useState<number | null>(null);
+  const [phase, setPhase] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [exporting, setExporting] = useState<string | null>(null);
 
   const specs = useMemo(() => fieldSpecs(graph), [graph]);
   const values = useMemo(
@@ -63,12 +67,12 @@ export function FieldView() {
     }
   }, []);
 
-  const draw = useCallback((next: FieldGraph) => {
+  const draw = useCallback((next: FieldGraph, at = 0) => {
     const renderer = rendererRef.current;
     if (!renderer) return;
     try {
       const started = performance.now();
-      renderer.render(next);
+      renderer.render(next, at);
       setFrameMs(Math.round((performance.now() - started) * 100) / 100);
       setError(null);
     } catch (err) {
@@ -77,8 +81,53 @@ export function FieldView() {
   }, []);
 
   useEffect(() => {
-    draw(graph);
-  }, [graph, draw]);
+    draw(graph, phase);
+  }, [graph, phase, draw]);
+
+  // Wiedergabe: die Phase laeuft von 0 bis 1 und beginnt von vorn.
+  useEffect(() => {
+    if (!playing) return;
+    let raf = 0;
+    const started = performance.now();
+    const durationMs = (graph.motion.durationFrames / FPS) * 1000;
+    const tick = (now: number) => {
+      setPhase(((now - started) % durationMs) / durationMs);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing, graph.motion.durationFrames]);
+
+  /** Einen vollen Durchlauf herausschreiben — Phase 0 bis knapp vor 1. */
+  const exportLoop = useCallback(async () => {
+    const canvas = canvasRef.current;
+    const renderer = rendererRef.current;
+    if (!canvas || !renderer) return;
+
+    setPlaying(false);
+    setExporting('0 %');
+    try {
+      const total = Math.round(graph.motion.durationFrames);
+      const result = await exportFrames({
+        canvas,
+        total,
+        fps: FPS,
+        // Der letzte Frame liegt bei (total-1)/total, nicht bei 1 -- sonst waere er
+        // mit dem ersten identisch und der Loop haette einen doppelten Frame.
+        renderFrame: (index) => renderer.render(graph, index / total),
+        onProgress: (done, all) => setExporting(`${Math.round((done / all) * 100)} %`),
+      });
+      download(result.blob, `${presetName.toLowerCase()}_loop.mp4`);
+      const check = result.verified;
+      setExporting(
+        `${result.frames} Frames / ${(result.blob.size / 1024).toFixed(0)} KB / ` +
+          `verifiziert: ${check.width}x${check.height}, ${check.durationSeconds.toFixed(2)} s`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setExporting(null);
+    }
+  }, [graph, presetName]);
 
   const update = useCallback((next: FieldGraph) => setGraph(next), []);
 
@@ -183,11 +232,38 @@ export function FieldView() {
 
         <Inspector specs={specs} values={values} onChange={onParam} />
 
+        <div className="field">
+          <span className="field__label">
+            phase <em>{phase.toFixed(3)}</em>
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={0.999}
+            step={0.001}
+            value={phase}
+            onChange={(e) => setPhase(Number(e.target.value))}
+          />
+        </div>
+
         <div className="motif__actions">
+          <button className="button" onClick={() => setPlaying((p) => !p)}>
+            {playing ? 'stopp' : 'abspielen'}
+          </button>
           <button className="button" onClick={savePng}>
             als PNG
           </button>
+          <button
+            className="button"
+            onClick={exportLoop}
+            disabled={exporting !== null && exporting.endsWith('%')}
+          >
+            {exporting !== null && exporting.endsWith('%') ? `rendert ${exporting}` : 'Loop als MP4'}
+          </button>
         </div>
+        {exporting !== null && !exporting.endsWith('%') && (
+          <span className="field__label">{exporting}</span>
+        )}
 
         <div className="inspector__foot">
           <div>

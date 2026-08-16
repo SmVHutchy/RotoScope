@@ -14,6 +14,7 @@ import { evaluateShape, type ShapeKind, type Vec2 } from './shapes.ts';
 import { sampleRamp, type PalettePreset } from './palette.ts';
 import { copyCount, copyTransform, NO_REPEAT, type RepeatSpec } from './repeat.ts';
 import type { RasterSpec } from './raster.ts';
+import { motionTransform, NO_MOTION, type MotionSpec } from './motion.ts';
 import type { Rgb } from '@rotoscope/grade-core';
 
 /** Obergrenze aus Spec §4 — begrenzt durch die Uniform-Kapazitaet von WebGL2. */
@@ -43,6 +44,8 @@ export type FieldGraph = {
   repeat: RepeatSpec;
   /** Punkt-, Block- und Kornraster (Referenzbild 7 und 8). */
   raster: RasterSpec;
+  /** Bewegung ueber eine Phase von 0 bis 1. */
+  motion: MotionSpec;
 };
 
 /** Formparameter aus der einheitlichen Darstellung ableiten. */
@@ -92,10 +95,13 @@ function combinedShapes(graph: FieldGraph, p: Vec2): number {
 export function evaluateFieldWithCopy(
   graph: FieldGraph,
   point: Vec2,
+  phase = 0,
 ): { distance: number; copy: number } {
   if (!graph.shapes.length) return { distance: Number.POSITIVE_INFINITY, copy: 0 };
 
-  const p = mirror(point, graph.mirrorAxis);
+  const motion = graph.motion ?? NO_MOTION;
+  const moved = motionTransform(point, phase, motion);
+  const p = mirror(moved.point, graph.mirrorAxis);
   const repeat = graph.repeat ?? NO_REPEAT;
   const copies = copyCount(repeat);
 
@@ -111,12 +117,14 @@ export function evaluateFieldWithCopy(
       copy = c;
     }
   }
-  return { distance, copy };
+
+  // Stauchung zurueckrechnen, sonst waeren die Baender falsch breit.
+  return { distance: distance * moved.scale, copy };
 }
 
 /** Abstand zum kombinierten Feld. Referenz fuer Tests und spaeter fuer die Isolinien. */
-export function evaluateField(graph: FieldGraph, point: Vec2): number {
-  return evaluateFieldWithCopy(graph, point).distance;
+export function evaluateField(graph: FieldGraph, point: Vec2, phase = 0): number {
+  return evaluateFieldWithCopy(graph, point, phase).distance;
 }
 
 /**
@@ -125,9 +133,10 @@ export function evaluateField(graph: FieldGraph, point: Vec2): number {
  * Diese Funktion ist die Wahrheit, gegen die der Shader im Golden-Frame-Vergleich
  * geprueft wird (Spec §9).
  */
-export function shadeField(graph: FieldGraph, point: Vec2): Rgb {
-  const { distance, copy } = evaluateFieldWithCopy(graph, point);
+export function shadeField(graph: FieldGraph, point: Vec2, phase = 0): Rgb {
+  const { distance, copy } = evaluateFieldWithCopy(graph, point, phase);
   const { palette, rings } = graph;
+  const driftBands = (graph.motion ?? NO_MOTION).drift * phase;
 
   const background = Array.isArray(palette.background[0])
     ? (palette.background as [Rgb, Rgb])[0]
@@ -136,7 +145,7 @@ export function shadeField(graph: FieldGraph, point: Vec2): Rgb {
   // Ausserhalb der Form: Hintergrund, ueberlagert vom Leuchten.
   if (distance > 0 && graph.glow <= 0) return background;
 
-  const sample = sampleRings(distance, rings);
+  const sample = sampleRings(distance, rings, driftBands);
 
   // Zwei Quellen fuer die Rampe: der Bandindex (Bild 1, 4, 5) oder der Kopienindex
   // (Bild 3). Das ist das Merkmal, das ein Preset zur Farbliste unterscheidet.

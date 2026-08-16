@@ -69,6 +69,51 @@ async function verify(blob: Blob): Promise<ExportResult['verified']> {
   return { width, height, durationSeconds, codec };
 }
 
+/**
+ * Beliebige Bildfolge kodieren.
+ *
+ * Der gemeinsame Kern beider Ausgaben: die Transition liefert ihre Frames, der
+ * Feldgenerator seine. Wer den Frame zeichnet, entscheidet der Aufrufer -- kodiert,
+ * geprueft und verpackt wird an einer Stelle.
+ */
+export async function exportFrames(options: {
+  canvas: HTMLCanvasElement;
+  total: number;
+  fps: number;
+  renderFrame: (index: number) => void;
+  onProgress?: (done: number, total: number) => void;
+}): Promise<ExportResult> {
+  const { canvas, total, fps, renderFrame, onProgress } = options;
+
+  const output = new Output({ format: new Mp4OutputFormat(), target: new BufferTarget() });
+  const source = new CanvasSource(canvas, { codec: 'avc', quality: new Quality('high') });
+  output.addVideoTrack(source, { frameRate: fps });
+  await output.start();
+
+  const started = performance.now();
+  const frameDuration = 1 / fps;
+
+  for (let index = 0; index < total; index++) {
+    renderFrame(index);
+    // add() awaiten: es respektiert den Gegendruck von Encoder und Writer.
+    await source.add(index * frameDuration, frameDuration);
+    onProgress?.(index + 1, total);
+  }
+
+  await output.finalize();
+  const buffer = (output.target as BufferTarget).buffer;
+  if (!buffer) throw new Error('Der Export hat keine Daten geliefert.');
+
+  const blob = new Blob([buffer], { type: 'video/mp4' });
+  return {
+    blob,
+    frames: total,
+    durationSeconds: total / fps,
+    encodeMs: Math.round(performance.now() - started),
+    verified: await verify(blob),
+  };
+}
+
 export async function exportTransition(options: ExportOptions): Promise<ExportResult> {
   const { renderer, canvas, sequence, params, ease, fps, onProgress } = options;
   const hold = options.holdFrames ?? Math.round(fps * 0.25);
