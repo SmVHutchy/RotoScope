@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Inspector } from './Inspector';
 import { MotifPanel } from './MotifPanel';
 import { EASE_NAMES, easeByName } from './ease';
+import { download, exportTransition } from './export';
 import { TransitionRenderer, type ParamValue } from './gl/transition';
 import { loadClip, type ClipInfo, type Frame } from './media';
 import { byName, defaultsOf, specsOf, transitions } from './transitions';
@@ -87,9 +88,40 @@ export function App() {
   const [frameMs, setFrameMs] = useState<number | null>(null);
   const [durationFrames, setDurationFrames] = useState(24);
   const [ease, setEase] = useState('smooth');
+  const [exporting, setExporting] = useState<string | null>(null);
 
   const transition = useMemo(() => byName(name), [name]);
   const specs = useMemo(() => specsOf(transition), [transition]);
+
+  /** Übergang als MP4 herausschreiben — derselbe Renderer wie in der Vorschau. */
+  const runExport = useCallback(async () => {
+    const renderer = rendererRef.current;
+    const canvas = canvasRef.current;
+    if (!renderer || !canvas) return;
+
+    setPlaying(false);
+    setExporting('0 %');
+    try {
+      const result = await exportTransition({
+        renderer,
+        canvas,
+        params,
+        ease: easeByName(ease),
+        durationFrames,
+        fps: 25,
+        onProgress: (done, total) => setExporting(`${Math.round((done / total) * 100)} %`),
+      });
+      download(result.blob, `${transition.name.toLowerCase()}_v1.mp4`);
+      const check = result.verified;
+      setExporting(
+        `${result.frames} Frames · ${(result.blob.size / 1024).toFixed(0)} KB · ${result.encodeMs} ms · ` +
+          `geprüft: ${check.width}×${check.height}, ${check.durationSeconds.toFixed(2)} s, ${check.codec ?? '?'}`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setExporting(null);
+    }
+  }, [durationFrames, ease, params, transition.name]);
 
   /** Ein Renderdurchgang. Getrennt gehalten, damit ihn Regler und Animation teilen. */
   const draw = useCallback((p: number, values: Record<string, ParamValue>) => {
@@ -268,9 +300,17 @@ export function App() {
             value={progress}
             onChange={(e) => onProgress(Number(e.target.value))}
           />
-          <button className="button" onClick={() => setPlaying((p) => !p)}>
-            {playing ? 'stopp' : 'abspielen'}
-          </button>
+          <div className="motif__actions">
+            <button className="button" onClick={() => setPlaying((p) => !p)}>
+              {playing ? 'stopp' : 'abspielen'}
+            </button>
+            <button className="button" onClick={runExport} disabled={!info || exporting !== null}>
+              {exporting !== null && exporting.endsWith('%') ? `rendert ${exporting}` : 'als MP4'}
+            </button>
+          </div>
+          {exporting !== null && !exporting.endsWith('%') && (
+            <span className="field__label">{exporting}</span>
+          )}
         </div>
 
         <div className="field field--row">

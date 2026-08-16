@@ -38,8 +38,17 @@ Transition-Ansicht abgelöst und liegt in Commit `fd6c7a5`, falls sie zurückkom
 | `.motif` live im Panel, speichern, laden | ✅ |
 | Approve-Snapshots mit Hash statt Presets (UC-C2) | ✅ inhaltsadressiert, wiederherstellbar |
 | Dauer und Ease wirken auf die Wiedergabe (UC-B3, Teil) | ✅ 6 Kurven inkl. Spring |
+| **MP4-Export mit Selbstprüfung** | ✅ WebCodecs, ~1 s für 36 Frames bei 1280×720 |
 | Zeitachse über GSAP: Timeline, Stagger, Scrub | ⬜ |
-| Headless rendern über `rotoc` | ⬜ als Nächstes |
+| Headless rendern über `rotoc` (ohne Browser) | ⬜ braucht eine GL-Umgebung in Node |
+
+**Export:** Kodiert wird im Browser über WebCodecs — derselbe Renderer, der die Vorschau zeichnet.
+Vorschau und Ausgabe können damit nicht auseinanderlaufen. Die geschriebene Datei wird sofort wieder
+geöffnet und auf Spur, Maße und Laufzeit geprüft; schlägt das fehl, bricht der Export ab, statt eine
+kaputte Datei auszuliefern.
+
+Der echte headless-Pfad (`rotoc render` ohne Browser) ist **nicht** dasselbe und fehlt noch — er
+braucht eine eigene GL-Umgebung in Node.
 
 Ausprobieren: `npm run dev`, dann `http://localhost:5173/?clip=/dev-sample.mp4` — Übergang wählen,
 Regler ziehen, `progress` scrubben.
