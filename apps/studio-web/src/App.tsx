@@ -93,10 +93,27 @@ export function App() {
   const [frameMs, setFrameMs] = useState<number | null>(null);
   const [durationFrames, setDurationFrames] = useState(24);
   const [ease, setEase] = useState('smooth');
-  const [exporting, setExporting] = useState<string | null>(null);
+  /** Zählt hoch, sobald neue Frames in den Texturen liegen — löst genau einen Redraw aus. */
+  const [framesEpoch, setFramesEpoch] = useState(0);
+  const [exporting, setExporting] = useState<
+    { phase: 'idle' } | { phase: 'running'; percent: number } | { phase: 'done'; summary: string }
+  >({ phase: 'idle' });
 
   const transition = useMemo(() => byName(name), [name]);
   const specs = useMemo(() => specsOf(transition), [transition]);
+
+  // Stabile Identität: sonst baut das MOTIF-Panel bei jedem Renderdurchlauf
+  // Dokument, Text und Hash neu — auch wenn sich inhaltlich nichts geändert hat.
+  const motifInput = useMemo(
+    () => ({
+      name: `${transition.name.toLowerCase()}_v1`,
+      glTransition: transition.name,
+      durationFrames,
+      ease,
+      params: params as Record<string, number | boolean | number[]>,
+    }),
+    [transition.name, durationFrames, ease, params],
+  );
 
   /** Übergang als MP4 herausschreiben — derselbe Renderer wie in der Vorschau. */
   const runExport = useCallback(async () => {
@@ -105,7 +122,7 @@ export function App() {
     if (!renderer || !canvas) return;
 
     setPlaying(false);
-    setExporting('0 %');
+    setExporting({ phase: 'running', percent: 0 });
     try {
       const result = await exportTransition({
         renderer,
@@ -114,17 +131,20 @@ export function App() {
         ease: easeByName(ease),
         durationFrames,
         fps: 25,
-        onProgress: (done, total) => setExporting(`${Math.round((done / total) * 100)} %`),
+        onProgress: (done, total) =>
+          setExporting({ phase: 'running', percent: Math.round((done / total) * 100) }),
       });
       download(result.blob, `${transition.name.toLowerCase()}_v1.mp4`);
       const check = result.verified;
-      setExporting(
-        `${result.frames} Frames · ${(result.blob.size / 1024).toFixed(0)} KB · ${result.encodeMs} ms · ` +
+      setExporting({
+        phase: 'done',
+        summary:
+          `${result.frames} Frames · ${(result.blob.size / 1024).toFixed(0)} KB · ${result.encodeMs} ms · ` +
           `geprüft: ${check.width}×${check.height}, ${check.durationSeconds.toFixed(2)} s, ${check.codec ?? '?'}`,
-      );
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-      setExporting(null);
+      setExporting({ phase: 'idle' });
     }
   }, [durationFrames, ease, params, transition.name]);
 
@@ -137,38 +157,6 @@ export function App() {
     setFrameMs(Math.round((performance.now() - started) * 100) / 100);
   }, []);
 
-  /**
-   * Beide Frames holen und in den Renderer geben.
-   *
-   * Fehlt eine Seite, springt die andere ein — so ist schon nach dem ersten Clip
-   * etwas zu sehen, statt eine leere Fläche bis zum zweiten Ladevorgang.
-   */
-  const refreshFrames = useCallback(async () => {
-    const { a, b } = clipsRef.current;
-    const source = a ?? b;
-    if (!source) return;
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    if (!rendererRef.current) rendererRef.current = new TransitionRenderer(canvas);
-
-    const [frameA, frameB] = await Promise.all([
-      (a ?? source).frameAt(times.a),
-      (b ?? source).frameAt(times.b),
-    ]);
-
-    const out = (a ?? source).info;
-    rendererRef.current.setImages(
-      frameA.canvas,
-      frameB.canvas,
-      out.width,
-      out.height,
-      (a ?? source).info.width / (a ?? source).info.height,
-      (b ?? source).info.width / (b ?? source).info.height,
-    );
-    rendererRef.current.use(transition);
-    draw(progress, params);
-  }, [draw, params, progress, times.a, times.b, transition]);
 
   /** Clip in eine Seite laden. A springt ans Ende, B an den Anfang — der Normalfall im Schnitt. */
   const loadSlot = useCallback(
@@ -192,10 +180,51 @@ export function App() {
     [],
   );
 
-  // Frames neu holen, sobald sich eine Zeitposition oder der Übergang ändert.
+  /**
+   * Dekodieren — und zwar nur, wenn sich Clips oder Zeitpositionen ändern.
+   *
+   * Bewusst getrennt vom Zeichnen: hingen beide zusammen, würde jeder Reglerzug
+   * am Inspector beide Videoframes neu dekodieren. Das kostet Größenordnungen
+   * mehr als der Renderdurchgang selbst.
+   *
+   * Fehlt eine Seite, springt die andere ein — so ist schon nach dem ersten Clip
+   * etwas zu sehen, statt einer leeren Fläche bis zum zweiten Ladevorgang.
+   */
   useEffect(() => {
-    void refreshFrames();
-  }, [refreshFrames]);
+    const { a, b } = clipsRef.current;
+    const from = a ?? b;
+    const to = b ?? a;
+    const canvas = canvasRef.current;
+    if (!from || !to || !canvas) return;
+
+    let cancelled = false;
+    void (async () => {
+      const [frameA, frameB] = await Promise.all([from.frameAt(times.a), to.frameAt(times.b)]);
+      if (cancelled) return;
+
+      const renderer = (rendererRef.current ??= new TransitionRenderer(canvas));
+      renderer.setImages(
+        frameA.canvas,
+        frameB.canvas,
+        from.info.width,
+        from.info.height,
+        from.info.width / from.info.height,
+        to.info.width / to.info.height,
+      );
+      setFramesEpoch((epoch) => epoch + 1);
+    })();
+
+    // Beim schnellen Ziehen laufen mehrere Dekodierungen; nur die letzte zählt.
+    return () => {
+      cancelled = true;
+    };
+  }, [infos.a, infos.b, times.a, times.b]);
+
+  /** Neue Frames im Renderer: einmal neu zeichnen, Parameter unangetastet lassen. */
+  useEffect(() => {
+    if (framesEpoch > 0) draw(progress, params);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [framesEpoch]);
 
   useEffect(() => {
     const url = new URLSearchParams(window.location.search).get('clip');
@@ -336,13 +365,15 @@ export function App() {
             <button className="button" onClick={() => setPlaying((p) => !p)}>
               {playing ? 'stopp' : 'abspielen'}
             </button>
-            <button className="button" onClick={runExport} disabled={!info || exporting !== null}>
-              {exporting !== null && exporting.endsWith('%') ? `rendert ${exporting}` : 'als MP4'}
+            <button
+              className="button"
+              onClick={runExport}
+              disabled={!info || exporting.phase === 'running'}
+            >
+              {exporting.phase === 'running' ? `rendert ${exporting.percent} %` : 'als MP4'}
             </button>
           </div>
-          {exporting !== null && !exporting.endsWith('%') && (
-            <span className="field__label">{exporting}</span>
-          )}
+          {exporting.phase === 'done' && <span className="field__label">{exporting.summary}</span>}
         </div>
 
         <div className="field field--row">
@@ -371,13 +402,7 @@ export function App() {
         <Inspector specs={specs} values={params} onChange={onParam} />
 
         <MotifPanel
-          input={{
-            name: `${transition.name.toLowerCase()}_v1`,
-            glTransition: transition.name,
-            durationFrames,
-            ease,
-            params: params as Record<string, number | boolean | number[]>,
-          }}
+          input={motifInput}
           onLoad={(loaded) => {
             setName(loaded.glTransition);
             setDurationFrames(loaded.durationFrames);

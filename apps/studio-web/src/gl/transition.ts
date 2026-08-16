@@ -77,6 +77,12 @@ export class TransitionRenderer {
   private toTex: WebGLTexture;
   private fromRatio = 1;
   private toRatio = 1;
+  /**
+   * Uniform-Positionen einmal je Programm nachschlagen statt in jedem Frame.
+   * `getUniformLocation` ist eine Namensauflösung im Treiber; bei 25 bis 60 Frames
+   * pro Sekunde und bis zu einem Dutzend Parametern läppert sich das.
+   */
+  private locations = new Map<string, WebGLUniformLocation | null>();
 
   constructor(private canvas: HTMLCanvasElement) {
     const gl = canvas.getContext('webgl2', { premultipliedAlpha: false, antialias: false });
@@ -109,6 +115,10 @@ export class TransitionRenderer {
       throw new Error(`Linker-Fehler in "${transition.name}": ${log}`);
     }
 
+    // Nach dem Linken werden die Shader-Objekte nicht mehr gebraucht.
+    gl.deleteShader(vs);
+    gl.deleteShader(fs);
+
     if (this.program) gl.deleteProgram(this.program);
     this.program = program;
     this.transition = transition;
@@ -117,6 +127,15 @@ export class TransitionRenderer {
     const loc = gl.getAttribLocation(program, '_p');
     gl.enableVertexAttribArray(loc);
     gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+    this.locations.clear();
+    for (const name of ['from', 'to', 'progress', 'ratio', '_fromR', '_toR', ...Object.keys(transition.paramsTypes)]) {
+      this.locations.set(name, gl.getUniformLocation(program, name));
+    }
+  }
+
+  private location(name: string): WebGLUniformLocation | null {
+    return this.locations.get(name) ?? null;
   }
 
   /**
@@ -162,31 +181,26 @@ export class TransitionRenderer {
 
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.fromTex);
-    gl.uniform1i(gl.getUniformLocation(program, 'from'), 0);
+    gl.uniform1i(this.location('from'), 0);
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, this.toTex);
-    gl.uniform1i(gl.getUniformLocation(program, 'to'), 1);
+    gl.uniform1i(this.location('to'), 1);
 
-    gl.uniform1f(gl.getUniformLocation(program, 'progress'), progress);
-    gl.uniform1f(gl.getUniformLocation(program, 'ratio'), this.canvas.width / this.canvas.height);
-    gl.uniform1f(gl.getUniformLocation(program, '_fromR'), this.fromRatio);
-    gl.uniform1f(gl.getUniformLocation(program, '_toR'), this.toRatio);
+    gl.uniform1f(this.location('progress'), progress);
+    gl.uniform1f(this.location('ratio'), this.canvas.width / this.canvas.height);
+    gl.uniform1f(this.location('_fromR'), this.fromRatio);
+    gl.uniform1f(this.location('_toR'), this.toRatio);
 
     for (const [name, type] of Object.entries(transition.paramsTypes)) {
-      this.setUniform(program, name, type, params[name] ?? transition.defaultParams[name]);
+      this.setUniform(name, type, params[name] ?? transition.defaultParams[name]);
     }
 
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
-  private setUniform(
-    program: WebGLProgram,
-    name: string,
-    type: string,
-    value: ParamValue | undefined,
-  ): void {
+  private setUniform(name: string, type: string, value: ParamValue | undefined): void {
     const gl = this.gl;
-    const location = gl.getUniformLocation(program, name);
+    const location = this.location(name);
     if (!location || value === undefined) return;
 
     switch (type) {

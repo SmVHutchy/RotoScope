@@ -8,6 +8,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildDocument, hashDocument, parse, serialize, toMir, type BuildInput } from '@rotoscope/motif-lang';
+import { download } from './export';
 
 const STORAGE_KEY = 'rotoscope.snapshots.v1';
 
@@ -63,15 +64,7 @@ export function MotifPanel({ input, onLoad }: Props) {
     setMessage(`approved ${hash}`);
   };
 
-  const save = () => {
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${input.name}.motif`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
+  const save = () => download(new Blob([text], { type: 'text/plain' }), `${input.name}.motif`);
 
   /** Text einlesen und zurueck in den UI-Zustand geben — Text und UI sind bidirektional. */
   const apply = (source: string) => {

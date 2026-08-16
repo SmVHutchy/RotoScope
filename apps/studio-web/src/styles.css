@@ -273,14 +273,10 @@ body {
   overflow: auto;
 }
 
-/* Plate und Maske liegen deckungsgleich uebereinander.
- *
- * Das Letterboxing macht der Container ueber `aspect-ratio` (wird inline aus den
- * Clip-Massen gesetzt), NICHT `object-fit` auf den Canvases. Grund: object-fit
- * skaliert nur den gezeichneten Inhalt, die Elementbox bleibt zu gross. Die Folge
- * waere ein Canvas, das aus dem Container herauslaeuft -- Bild unten abgeschnitten
- * und jeder Klick in der Y-Achse verschoben. So sind Container- und Canvas-Rechteck
- * garantiert identisch, und die Umrechnung Anzeige -> Bildkoordinaten stimmt exakt.
+/* Das Letterboxing macht der Container ueber `aspect-ratio` (inline aus den
+ * Clip-Massen gesetzt), NICHT `object-fit` auf dem Canvas: object-fit skaliert nur
+ * den gezeichneten Inhalt, die Elementbox bleibt zu gross und laeuft aus dem
+ * Container heraus. So sind Container- und Canvas-Rechteck garantiert identisch.
  */
 .stack {
   position: relative;
@@ -290,7 +286,6 @@ body {
   border-radius: 3px;
   overflow: hidden;
   box-shadow: 0 0 0 1px var(--line);
-  cursor: crosshair;
 }
 
 .stack.is-empty {
@@ -302,10 +297,6 @@ body {
   width: 100%;
   height: 100%;
   display: block;
-}
-
-.stack__layer--mask {
-  pointer-events: none;
 }
 
 /* Die beiden Clip-Seiten unter dem Viewer. */
@@ -379,11 +370,6 @@ body {
   background: var(--panel);
   font-size: 0.78rem;
   color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.meta__live {
-  color: var(--fg);
   font-variant-numeric: tabular-nums;
 }
 
