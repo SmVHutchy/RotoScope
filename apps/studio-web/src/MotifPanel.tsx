@@ -55,7 +55,7 @@ export function MotifPanel({ input, onLoad }: Props) {
 
   const approve = () => {
     if (alreadyApproved) {
-      setMessage('Dieser Stand ist bereits approved — gleicher Hash.');
+      setMessage('Dieser Stand ist schon approved / gleicher Hash');
       return;
     }
     setSnapshots((prev) => [

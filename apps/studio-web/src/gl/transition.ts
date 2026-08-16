@@ -36,9 +36,42 @@ vec4 getToColor(vec2 uv) {
 }
 `;
 
+/**
+ * Der Grade haengt hinten am selben Shader statt an einem zweiten Durchgang.
+ *
+ * Das LUT liegt als gekachelte 2D-Textur vor, nicht als 3D-Textur: `sampler3D`
+ * verlangt GLSL ES 3.00, die gl-transitions sind ES 1.00 (ADR 004). Kacheln ist
+ * der uebliche Weg -- `size` Scheiben nebeneinander, Breite `size*size`.
+ *
+ * Die Adressierung trifft bewusst Texelmitten (`+ 0.5`): so interpoliert die
+ * Hardware nur innerhalb einer Scheibe und blutet nicht in die benachbarte.
+ */
 const FRAGMENT_TAIL = `
+uniform sampler2D lut;
+uniform float lutSize;
+uniform float gradeMix;
+
+vec3 lutLookup(vec3 color, float slice) {
+  float x = (slice * lutSize + color.r * (lutSize - 1.0) + 0.5) / (lutSize * lutSize);
+  float y = (color.g * (lutSize - 1.0) + 0.5) / lutSize;
+  return texture2D(lut, vec2(x, y)).rgb;
+}
+
+vec4 grade(vec4 color) {
+  if (gradeMix <= 0.0) return color;
+  vec3 c = clamp(color.rgb, 0.0, 1.0);
+  float slice = c.b * (lutSize - 1.0);
+  float lower = floor(slice);
+  vec3 graded = mix(
+    lutLookup(c, lower),
+    lutLookup(c, min(lower + 1.0, lutSize - 1.0)),
+    slice - lower
+  );
+  return vec4(mix(color.rgb, graded, gradeMix), color.a);
+}
+
 void main() {
-  gl_FragColor = transition(_uv);
+  gl_FragColor = grade(transition(_uv));
 }`;
 
 export type ParamValue = number | boolean | number[];
@@ -83,6 +116,9 @@ export class TransitionRenderer {
    * pro Sekunde und bis zu einem Dutzend Parametern läppert sich das.
    */
   private locations = new Map<string, WebGLUniformLocation | null>();
+  private lutTex: WebGLTexture;
+  private lutSize = 0;
+  private gradeMix = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
     // `preserveDrawingBuffer`, weil der Canvas-Inhalt auch nach dem Compositing noch
@@ -102,6 +138,29 @@ export class TransitionRenderer {
 
     this.fromTex = makeTexture(gl);
     this.toTex = makeTexture(gl);
+    this.lutTex = makeTexture(gl);
+  }
+
+  /**
+   * Look setzen. `null` schaltet ihn ab.
+   *
+   * `tiles` enthaelt `size` Scheiben nebeneinander, also `size*size` mal `size`
+   * Texel im Format RGBA8.
+   */
+  setLut(tiles: Uint8Array | null, size: number, mix = 1): void {
+    const gl = this.gl;
+    this.gradeMix = tiles ? mix : 0;
+    if (!tiles) return;
+
+    this.lutSize = size;
+    gl.bindTexture(gl.TEXTURE_2D, this.lutTex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, size * size, size, 0, gl.RGBA, gl.UNSIGNED_BYTE, tiles);
+  }
+
+  /** Nur die Staerke aendern, ohne das LUT neu hochzuladen. */
+  setGradeMix(mix: number): void {
+    if (this.lutSize > 0) this.gradeMix = mix;
   }
 
   /** Uebergang laden und uebersetzen. Wirft mit der Shader-Fehlermeldung, wenn er nicht baut. */
@@ -136,7 +195,18 @@ export class TransitionRenderer {
     gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
 
     this.locations.clear();
-    for (const name of ['from', 'to', 'progress', 'ratio', '_fromR', '_toR', ...Object.keys(transition.paramsTypes)]) {
+    for (const name of [
+      'from',
+      'to',
+      'progress',
+      'ratio',
+      '_fromR',
+      '_toR',
+      'lut',
+      'lutSize',
+      'gradeMix',
+      ...Object.keys(transition.paramsTypes),
+    ]) {
       this.locations.set(name, gl.getUniformLocation(program, name));
     }
   }
@@ -188,6 +258,12 @@ export class TransitionRenderer {
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, this.toTex);
     gl.uniform1i(this.location('to'), 1);
+
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, this.lutTex);
+    gl.uniform1i(this.location('lut'), 2);
+    gl.uniform1f(this.location('lutSize'), this.lutSize || 2);
+    gl.uniform1f(this.location('gradeMix'), this.gradeMix);
 
     gl.uniform1f(this.location('progress'), progress);
     gl.uniform1f(this.location('ratio'), this.canvas.width / this.canvas.height);

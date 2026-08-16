@@ -60,9 +60,9 @@ function useEngine(): EngineState {
 function EngineBadge({ state }: { state: EngineState }) {
   const label =
     state.status === 'pruefe'
-      ? 'Engine wird geprüft …'
+      ? 'Engine wird gesucht ...'
       : state.status === 'an'
-        ? `Engine v${state.version} · ${state.backend ?? 'kein GPU-Backend'}`
+        ? `Engine v${state.version} / ${state.backend ?? 'kein GPU-Backend'}`
         : 'Engine offline';
 
   return (
@@ -145,8 +145,8 @@ export function App() {
       setExporting({
         phase: 'done',
         summary:
-          `${result.frames} Frames · ${(result.blob.size / 1024).toFixed(0)} KB · ${result.encodeMs} ms · ` +
-          `geprüft: ${check.width}×${check.height}, ${check.durationSeconds.toFixed(2)} s, ${check.codec ?? '?'}`,
+          `${result.frames} Frames / ${(result.blob.size / 1024).toFixed(0)} KB / ${result.encodeMs} ms / ` +
+          `verifiziert: ${check.width}x${check.height}, ${check.durationSeconds.toFixed(2)} s, ${check.codec ?? '?'}`,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -352,7 +352,7 @@ export function App() {
 
         <div className="slots">
           <ClipSlot
-            label="A — raus"
+            label="A raus"
             hint="Clip hierher ziehen"
             info={infos.a}
             time={times.a}
@@ -360,7 +360,7 @@ export function App() {
             onTime={(seconds) => setTimes((prev) => ({ ...prev, a: seconds }))}
           />
           <ClipSlot
-            label="B — rein"
+            label="B rein"
             hint="Clip hierher ziehen"
             info={infos.b}
             time={times.b}
@@ -369,13 +369,13 @@ export function App() {
           />
         </div>
 
-        {busy && <div className="viewer__hint">dekodiere …</div>}
+        {busy && <div className="viewer__hint">dekodiere ...</div>}
         {error && <div className="viewer__hint viewer__hint--error">{error}</div>}
       </section>
 
       <aside className="inspector">
         <label className="field">
-          <span className="field__label">Übergang</span>
+          <span className="field__label">Transition</span>
           <select value={name} onChange={(e) => setName(e.target.value)}>
             {transitions.map((t) => (
               <option key={t.name} value={t.name}>
@@ -414,7 +414,7 @@ export function App() {
 
         <div className="field field--row">
           <label className="field">
-            <span className="field__label">Dauer</span>
+            <span className="field__label">Frames</span>
             <input
               type="number"
               min={1}
@@ -453,23 +453,25 @@ export function App() {
         />
 
         <div className="inspector__foot">
-          <div>
-            {specs.length} Parameter · {transition.license} · {transition.author.split('<')[0].trim()}
-          </div>
+          <div>{specs.length} Parameter / {transition.license}</div>
+          {/* Autorennamen sind fremde Daten und enthalten Zeichen, die Endless nicht
+              hat. Lieber die ganze Zeile in der Systemschrift als ein Wort mit
+              gemischten Glyphen — der Name bleibt korrekt, das Satzbild ruhig. */}
+          <div className="credit">{transition.author.split('<')[0].trim()}</div>
           {frameMs !== null && <div>Renderzeit {frameMs} ms</div>}
-          <div>{transitions.length} Übergänge geladen</div>
+          <div>{transitions.length} Transitions geladen</div>
         </div>
       </aside>
 
       {info && (
         <footer className="meta">
           <span>
-            {info.width}×{info.height}
+            {info.width}x{info.height}
           </span>
           <span>{info.duration.toFixed(2)} s</span>
           <span>{info.codec ?? 'Codec unbekannt'}</span>
           <span className="meta__note">
-            A {times.a.toFixed(2)} s → B {times.b.toFixed(2)} s
+            A {times.a.toFixed(2)} s zu B {times.b.toFixed(2)} s
           </span>
         </footer>
       )}

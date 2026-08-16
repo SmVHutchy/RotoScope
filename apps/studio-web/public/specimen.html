@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Endless — Schriftmuster</title>
+    <style>
+      @font-face {
+        font-family: 'Endless';
+        src: url('/fonts/Endless.ttf') format('truetype');
+        font-weight: 400;
+        font-display: block;
+      }
+      body {
+        margin: 0;
+        padding: 32px;
+        background: #101013;
+        color: #e6e6ea;
+        font-family: 'Endless', sans-serif;
+      }
+      section { margin-bottom: 28px; }
+      .label { font-family: system-ui; font-size: 11px; color: #8b8b97; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
+      .s72 { font-size: 72px; }
+      .s32 { font-size: 32px; }
+      .s18 { font-size: 18px; }
+      .s13 { font-size: 13px; }
+      .s11 { font-size: 11px; }
+      .track { letter-spacing: 0.18em; }
+      .upper { text-transform: uppercase; }
+      .num { font-variant-numeric: tabular-nums; }
+      .fallback { font-family: system-ui; }
+    </style>
+  </head>
+  <body>
+    <section><div class="label">72 px</div><div class="s72">RotoScope Studio</div></section>
+    <section><div class="label">32 px, weite Laufweite, Versalien</div><div class="s32 track upper">Transition</div></section>
+    <section><div class="label">18 px gemischt</div><div class="s18">Handgloves 0123456789 crosswarp GridFlip</div></section>
+    <section><div class="label">13 px Lauftext</div><div class="s13">The quick brown fox jumps over the lazy dog 0123456789</div></section>
+    <section><div class="label">11 px kleinste Groesse</div><div class="s11 num">duration 24f / ease smooth / hash 8e6eed1f / 12.3 ms</div></section>
+    <section><div class="label">Zeichensatz</div><div class="s18">ABCDEFGHIJKLMNOPQRSTUVWXYZ<br />abcdefghijklmnopqrstuvwxyz<br />0123456789 !"#$%&amp;'()*+,-./:;&lt;=&gt;?@[]^_`{|}~</div></section>
+    <section>
+      <div class="label">Problemfall: Deutsch mit Umlauten (faellt mitten im Wort zurueck)</div>
+      <div class="s18">Übergang · Dauer · geprüft · Fläche — 1280×720</div>
+    </section>
+    <section>
+      <div class="label">Zum Vergleich dieselbe Zeile in der Systemschrift</div>
+      <div class="s18 fallback">Übergang · Dauer · geprüft · Fläche — 1280×720</div>
+    </section>
+  </body>
+</html>

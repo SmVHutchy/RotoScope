@@ -1,14 +1,43 @@
+/**
+ * Endless traegt die gesamte Oberflaeche.
+ *
+ * Die Schrift hat 94 Glyphen, reines ASCII: keine Umlaute, kein Gedankenstrich,
+ * kein Mittelpunkt. Deshalb ist die Beschriftung bewusst umlautfrei gehalten --
+ * "Transition" statt "Uebergang", "verifiziert" statt "geprueft", "/" statt "·".
+ * Ein einzelner Umlaut wuerde mitten im Wort in die Ersatzschrift kippen, und
+ * genau das sieht man sofort.
+ *
+ * Es gibt nur einen Schnitt (400, kein Fett). Hierarchie entsteht deshalb ueber
+ * Groesse, Laufweite und Farbe -- nie ueber `font-weight`, das wuerde die Schrift
+ * kuenstlich verzerren.
+ */
+@font-face {
+  font-family: 'Endless';
+  src: local('Endless'), url('/fonts/Endless.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
-  --bg: #101013;
-  --panel: #17171c;
-  --line: #2a2a33;
-  --fg: #e6e6ea;
-  --muted: #8b8b97;
+  --bg: #0e0e11;
+  --panel: #16161b;
+  --raised: #1d1d24;
+  --line: #26262f;
+  --fg: #ececf0;
+  --muted: #85858f;
+  --accent: #7dd3fc;
   --ok: #4ade80;
   --off: #f87171;
   --wait: #fbbf24;
-  font-family: ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+
+  --font: 'Endless', ui-sans-serif, system-ui, sans-serif;
+  /* Weite Laufweite fuer Versalien-Label: die runden Formen brauchen Luft. */
+  --track-label: 0.16em;
+  --radius: 5px;
+
+  font-family: var(--font);
 }
 
 * {
@@ -32,7 +61,7 @@ body {
 /* Viewer links, Inspector rechts, Kopf und Fuss ueber die volle Breite. */
 .app--split {
   display: grid;
-  grid-template-columns: 1fr 300px;
+  grid-template-columns: 1fr 320px;
   grid-template-rows: auto 1fr auto;
   grid-template-areas:
     'head head'
@@ -57,11 +86,11 @@ body {
 .inspector {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 0.85rem;
+  gap: 1.05rem;
+  padding: 1.05rem;
   background: var(--panel);
   overflow-y: auto;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
 }
 
 .inspector__pane {
@@ -77,17 +106,28 @@ body {
   line-height: 1.7;
 }
 
+/* Fremde Daten (Autorennamen) in der Systemschrift: Endless deckt nur ASCII ab. */
+.credit {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.68rem;
+  opacity: 0.8;
+}
+
 .field {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
 }
 
+/* Versalien mit weiter Laufweite: das Satzbild, in dem Endless am besten wirkt. */
 .field__label {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
   display: flex;
   justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .field__label em {
@@ -102,26 +142,56 @@ body {
 }
 
 .field select {
-  background: var(--bg);
+  background: var(--raised);
   color: var(--fg);
   border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 0.35rem 0.4rem;
+  border-radius: var(--radius);
+  padding: 0.4rem 0.5rem;
+  font-family: var(--font);
   font-size: 0.8rem;
+  letter-spacing: 0.01em;
 }
 
+/* Regler in der Formensprache der Schrift: runde Griffe, dünne Bahn. */
+.field input[type='range'] {
+  appearance: none;
+  height: 3px;
+  background: var(--line);
+  border-radius: 999px;
+  outline: none;
+}
+
+.field input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--fg);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.field input[type='range']:hover::-webkit-slider-thumb {
+  background: var(--accent);
+}
+
+/* Runde Formen der Schrift aufgreifen: Pillen statt Kaesten, ruhige Kontraste. */
 .button {
-  background: var(--bg);
+  background: var(--raised);
   color: var(--fg);
   border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 0.35rem 0.6rem;
-  font-size: 0.78rem;
+  border-radius: 999px;
+  padding: 0.34rem 0.8rem;
+  font-family: var(--font);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
   cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease;
 }
 
-.button:hover {
-  border-color: var(--muted);
+.button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .button:disabled {
@@ -166,13 +236,14 @@ body {
 }
 
 .motif__text {
+  font-variant-numeric: tabular-nums;
   margin: 0;
   padding: 0.6rem;
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 3px;
   font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
-  font-size: 0.68rem;
+  font-size: 0.69rem;
   line-height: 1.55;
   color: var(--fg);
   white-space: pre;
@@ -215,8 +286,9 @@ body {
 }
 
 .snapshot code {
-  color: var(--fg);
-  font-family: ui-monospace, Consolas, monospace;
+  color: var(--accent);
+  font-family: var(--font);
+  letter-spacing: 0.04em;
 }
 
 .app__head {
@@ -224,14 +296,16 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.75rem 1rem;
+  padding: 0.9rem 1.1rem;
   background: var(--panel);
 }
 
+/* Wortmarke: gross genug, dass die geometrischen Formen wirken, mit leichter
+   Sperrung. Kein Fett -- die Schrift hat keins. */
 .app__head h1 {
-  font-size: 0.95rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: 1.15rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
   margin: 0;
 }
 
@@ -239,8 +313,9 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.78rem;
+  font-size: 0.7rem;
   color: var(--muted);
+  letter-spacing: 0.05em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -337,10 +412,19 @@ body {
   font-size: 0.78rem;
 }
 
-.slot input[type='file'] {
-  font-size: 0.7rem;
-  color: var(--muted);
-  max-width: 100%;
+.slot__pick {
+  align-self: flex-start;
+}
+
+.slot__pick input[type='file'] {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+
+.slot__pick .button {
+  display: inline-block;
 }
 
 .viewer__hint {
@@ -365,8 +449,8 @@ body {
 
 .meta {
   display: flex;
-  gap: 1.25rem;
-  padding: 0.6rem 1rem;
+  gap: 1.4rem;
+  padding: 0.7rem 1.1rem;
   background: var(--panel);
   font-size: 0.78rem;
   color: var(--muted);

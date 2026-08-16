@@ -31,17 +31,22 @@ export function ClipSlot({ label, hint, info, time, onFile, onTime }: Props) {
     >
       <div className="slot__head">
         <strong>{label}</strong>
-        <span>{info ? `${info.width}×${info.height} · ${info.duration.toFixed(2)} s` : hint}</span>
+        <span>{info ? `${info.width}x${info.height} / ${info.duration.toFixed(2)} s` : hint}</span>
       </div>
 
-      <input
-        type="file"
-        accept="video/*"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) onFile(file);
-        }}
-      />
+      {/* Der native Datei-Knopf wird vom System gezeichnet, in Systemschrift und
+          mit Umlaut. Er bleibt bedienbar, aber unsichtbar hinter einem eigenen. */}
+      <label className="slot__pick">
+        <input
+          type="file"
+          accept="video/*"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onFile(file);
+          }}
+        />
+        <span className="button">{info ? 'ersetzen' : 'Clip waehlen'}</span>
+      </label>
 
       {info && (
         <label className="field">
