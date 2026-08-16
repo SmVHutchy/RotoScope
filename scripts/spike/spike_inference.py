@@ -225,18 +225,40 @@ def cmd_synthetic(args: argparse.Namespace) -> int:
     return 0
 
 
+# Hydra-Config je Checkpoint. Die Namen weichen von den Dateinamen ab (b+ vs base_plus).
+SAM2_CONFIGS = {
+    "sam2.1_hiera_tiny": "configs/sam2.1/sam2.1_hiera_t.yaml",
+    "sam2.1_hiera_small": "configs/sam2.1/sam2.1_hiera_s.yaml",
+    "sam2.1_hiera_base_plus": "configs/sam2.1/sam2.1_hiera_b+.yaml",
+    "sam2.1_hiera_large": "configs/sam2.1/sam2.1_hiera_l.yaml",
+}
+
+
 def cmd_sam2(args: argparse.Namespace) -> int:
-    """Echte SAM-2-Bild-Encoder-Latenz. Braucht Checkpoint und installiertes sam2."""
+    """Echte SAM-2-Latenz, getrennt nach Encoder und Klick-Antwort.
+
+    Wichtig fuer die Auswertung: SAM 2 skaliert jedes Bild intern auf 1024x1024.
+    Die Encoder-Zeit haengt deshalb NICHT von der Eingangsaufloesung ab, sondern nur
+    von der Modellgroesse. Eine Proxy-Aufloesung spart hier nichts -- sie spart bei
+    Decode, Matting und IO. Wer das verwechselt, plant die falsche Optimierung.
+
+    Was tatsaechlich variiert:
+      * set_image()  -- einmal pro Frame, teuer, cachebar
+      * predict()    -- pro Klick, billig, laeuft auf dem gecachten Embedding
+
+    Fuer UC-E7 zaehlt predict(): das ist die Latenz, die der Nutzer beim Korrigieren spuert.
+    """
     try:
         import torch
     except ImportError:
         print("torch fehlt. Erst Pfad A aus scripts/spike/README.md.")
         return 1
 
-    checkpoint = Path(args.checkpoint) if args.checkpoint else None
-    if not checkpoint or not checkpoint.exists():
-        print("Kein Checkpoint angegeben oder Datei fehlt.")
-        print("  --checkpoint <pfad zur .pt-Datei>")
+    checkpoints = [Path(c) for c in (args.checkpoint or [])]
+    missing = [c for c in checkpoints if not c.exists()]
+    if not checkpoints or missing:
+        print("Checkpoint fehlt: " + (", ".join(str(m) for m in missing) or "keiner angegeben"))
+        print("  --checkpoint <pfad.pt> [<pfad.pt> ...]")
         print("\nVor dem Herunterladen: docs/licenses/ pruefen. Kein Modell ohne")
         print("dokumentierte Lizenz — das ist Regel 4 im Master-Prompt.")
         return 2
@@ -256,30 +278,64 @@ def cmd_sam2(args: argparse.Namespace) -> int:
     import numpy as np
 
     device = torch.device("cuda")
-    model = build_sam2(args.config, str(checkpoint), device=device)
-    predictor = SAM2ImagePredictor(model)
+    width, height = RESOLUTIONS["proxy-960"]
+    image = np.random.randint(0, 255, (height, width, 3), dtype=np.uint8)
+    point = np.array([[width // 2, height // 2]])
+    label_arr = np.array([1])
 
-    results: dict[str, dict[str, float]] = {}
-    for label, (width, height) in RESOLUTIONS.items():
-        image = np.random.randint(0, 255, (height, width, 3), dtype=np.uint8)
+    print(f"Device: {torch.cuda.get_device_name(0)}")
+    print(f"Eingang: {width}x{height} (SAM 2 skaliert intern auf 1024x1024)\n")
+    print(f"{'Variante':<24} {'set_image':>12} {'predict':>12} {'Summe':>10}   {'VRAM':>8}")
+    print("-" * 72)
+
+    results: dict[str, dict] = {}
+    for checkpoint in checkpoints:
+        name = checkpoint.stem
+        config = args.config or SAM2_CONFIGS.get(name)
+        if not config:
+            print(f"{name:<24} keine Config bekannt — mit --config angeben")
+            continue
+
+        torch.cuda.reset_peak_memory_stats()
+        model = build_sam2(config, str(checkpoint), device=device)
+        predictor = SAM2ImagePredictor(model)
 
         def encode():
             predictor.set_image(image)
             torch.cuda.synchronize()
 
-        stats = _bench(encode, warmup=2, runs=6)
-        results[label] = stats
+        encode_stats = _bench(encode, warmup=2, runs=6)
 
-        budget = BUDGET_MS.get(label)
-        verdict = ""
-        if budget:
-            verdict = "  im Budget" if stats["median_ms"] <= budget else f"  ueber Budget ({budget} ms)"
-        print(f"{label:<12} encoder median {stats['median_ms']:>8.1f} ms{verdict}")
+        # Embedding liegt jetzt vor -- predict() misst nur noch den Decoder.
+        def click():
+            predictor.predict(point_coords=point, point_labels=label_arr, multimask_output=True)
+            torch.cuda.synchronize()
+
+        click_stats = _bench(click, warmup=3, runs=10)
+
+        vram = torch.cuda.max_memory_allocated() / 1024**3
+        total = encode_stats["median_ms"] + click_stats["median_ms"]
+        results[name] = {
+            "config": config,
+            "set_image": encode_stats,
+            "predict": click_stats,
+            "vram_gb": round(vram, 2),
+        }
+        print(f"{name:<24} {encode_stats['median_ms']:>9.1f} ms {click_stats['median_ms']:>9.1f} ms "
+              f"{total:>7.1f} ms {vram:>7.2f} GB")
+
+        del predictor, model
+        torch.cuda.empty_cache()
+
+    budget = BUDGET_MS["proxy-960"]
+    print(f"\nBudget fuer die Klick-Korrektur: {budget:.0f} ms (UC-E7).")
+    print("Gilt fuer predict() auf gecachtem Embedding — set_image laeuft einmal pro Frame")
+    print("und gehoert in den Frame-Cache, nicht in den Klick-Pfad.")
 
     _write(args, {
         "kind": "sam2",
         "device": torch.cuda.get_device_name(0),
-        "checkpoint": str(checkpoint),
+        "input_resolution": f"{width}x{height}",
         "results": results,
     })
     return 0
@@ -307,9 +363,9 @@ def main() -> int:
     synthetic.add_argument("--out", help="Zieldatei fuer das JSON-Ergebnis")
     synthetic.set_defaults(func=cmd_synthetic)
 
-    sam2 = sub.add_parser("sam2", help="Echte SAM-2-Encoder-Latenz")
-    sam2.add_argument("--checkpoint", help="Pfad zur Checkpoint-Datei")
-    sam2.add_argument("--config", default="configs/sam2.1/sam2.1_hiera_s.yaml")
+    sam2 = sub.add_parser("sam2", help="Echte SAM-2-Latenz (Encoder und Klick)")
+    sam2.add_argument("--checkpoint", nargs="+", help="Eine oder mehrere Checkpoint-Dateien")
+    sam2.add_argument("--config", help="Hydra-Config; sonst aus dem Dateinamen abgeleitet")
     sam2.add_argument("--out", help="Zieldatei fuer das JSON-Ergebnis")
     sam2.set_defaults(func=cmd_sam2)
 

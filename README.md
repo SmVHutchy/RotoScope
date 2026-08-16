@@ -6,7 +6,7 @@ Lokal, offline, jeder Parameter offen.
 **Das verbindliche Briefing ist [PROJECT_PROMPT.md](PROJECT_PROMPT.md).** Architektur, Use-Cases,
 Bausteine, Milestones und die Sprachdefinition stehen dort — nicht hier.
 
-Status: **M0 abgeschlossen** (2026-08-16). Nächster Schritt: M1 — Roto Core.
+Status: **M0 abgeschlossen, M1 begonnen** (2026-08-16).
 
 | M0-Punkt | Stand |
 |---|---|
@@ -15,11 +15,21 @@ Status: **M0 abgeschlossen** (2026-08-16). Nächster Schritt: M1 — Roto Core.
 | Inferenz-Pfad A (PyTorch + ROCm) | ✅ `torch 2.9.1+rocm7.2.1`, HIP 7.2, GPU sichtbar |
 | Inferenz-Pfad B (ONNX Runtime + DirectML) | ✅ `DmlExecutionProvider` verfügbar |
 | Latenz gemessen, Backend entschieden | ✅ [ADR 001](docs/decisions/001-inferenz-backend.md) |
-| Messung mit echten SAM-2-Gewichten | ⬜ M1 — hängt am Modell-Download und der Lizenzprüfung |
+| Messung mit echten SAM-2-Gewichten | ✅ [ADR 002](docs/decisions/002-sam2-variante-und-frame-cache.md) |
 
-**Kernzahl aus dem Spike:** ViT-B-Encoder-Last bei 960 px in **56 ms** (fp16, mit AOTriton-Attention),
-bei 1920 px in 461 ms, VRAM-Spitze 0,36 GB von 16 GB. Der interaktive Proxy-Pfad trägt, volle
-Auflösung bleibt Hintergrundarbeit — genau wie geplant, jetzt belegt.
+**M1 — laufend:**
+
+| Aufgabe | Stand |
+|---|---|
+| Eine Python-Umgebung statt zwei (ADR 001, Konsequenz 7) | ✅ `uv sync --extra rocm --extra directml` |
+| SAM 2 Lizenzprüfung vor Download (Regel 4) | ✅ Apache-2.0, Code und Gewichte |
+| SAM 2 installiert, Varianten vermessen | ✅ tiny / small / base_plus |
+| Backend-agnostisches Modell-Interface | ⬜ als Nächstes |
+| Frame-Cache + Prefetch | ⬜ als Nächstes — laut ADR 002 tragende Konstruktion |
+
+**Kernzahl:** SAM 2 `tiny` braucht **280 ms** für das Frame-Embedding, aber nur **11 ms** pro Klick,
+sobald das Embedding im Cache liegt — gegen ein Budget von 250 ms. Interaktives Arbeiten steht und
+fällt damit mit dem Cache, nicht mit der Modellgeschwindigkeit.
 
 ---
 

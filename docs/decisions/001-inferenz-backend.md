@@ -73,10 +73,13 @@ sie als Default festgeschrieben wird.
 
 ## Konsequenzen
 
-1. **Der Proxy-Pfad trägt.** 56–80 ms für eine ViT-B-Encoder-Last bei 960 px lassen im
-   250-ms-Budget für die Klick-Korrektur genug Luft für Decoder, Maskenaufbereitung und
-   Netzwerk-Overhead. Die zweistufige Architektur aus §4.5 wird nicht nur gebaut, weil sie
-   sauber ist, sondern weil die Zahlen sie tragen.
+1. ~~**Der Proxy-Pfad trägt.** 56–80 ms für eine ViT-B-Encoder-Last bei 960 px lassen im
+   250-ms-Budget für die Klick-Korrektur genug Luft.~~
+   **Korrigiert durch [ADR 002](002-sam2-variante-und-frame-cache.md) (2026-08-16):** Die
+   synthetische Klammer war um Faktor vier zu optimistisch, weil SAM 2 intern immer auf 1024×1024
+   skaliert — 4096 Tokens statt der angenommenen 2040. Der echte Encoder braucht 280 ms.
+   Das Budget wird trotzdem eingehalten, aber über den Frame-Cache: `predict` kostet 11 ms auf
+   einem gecachten Embedding. Details und Konsequenzen in ADR 002.
 2. **Volle Auflösung bleibt Hintergrundarbeit.** 460–705 ms/Frame ist definitiv kein
    interaktives Budget. Genau so war es geplant — jetzt ist es belegt statt vermutet.
 3. **VRAM ist kein Thema.** 0,36–1,84 GB von 16 GB. Modelle können gleichzeitig geladen

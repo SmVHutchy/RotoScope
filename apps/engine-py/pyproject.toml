@@ -14,8 +14,23 @@ dependencies = [
 engine = "rotoscope_engine.__main__:main"
 
 [project.optional-dependencies]
-# Bewusst NICHT in den Default-Dependencies: die Wheels sind mehrere GB gross und
-# der Pfad haengt vom Ergebnis des M0-Spikes ab (scripts/spike/README.md).
+# Bewusst NICHT in den Default-Dependencies: die Wheels sind mehrere GB gross.
+# Welcher Pfad gilt, entscheidet ADR 001 -- A (rocm) primaer, B (directml) sekundaer.
+
+# Pfad A. Direkte URLs statt Index, weil AMD die Windows-Wheels nur so ausliefert.
+# Versionen entsprechen der Messung in ADR 001; Aenderung heisst neu messen.
+rocm = [
+    # torch fordert rocm[libraries]==7.2.1 an -- das liegt nicht auf PyPI, sondern
+    # nur bei AMD. Ohne diese vier Zeilen ist die Aufloesung unloesbar.
+    "rocm[libraries] @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm-7.2.1.tar.gz",
+    "rocm-sdk-core @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm_sdk_core-7.2.1-py3-none-win_amd64.whl",
+    "rocm-sdk-devel @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm_sdk_devel-7.2.1-py3-none-win_amd64.whl",
+    "rocm-sdk-libraries-custom @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm_sdk_libraries_custom-7.2.1-py3-none-win_amd64.whl",
+    "torch @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/torch-2.9.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl",
+    "torchvision @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/torchvision-0.24.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl",
+]
+
+# Pfad B.
 directml = ["onnxruntime-directml>=1.20", "numpy>=1.26"]
 
 [build-system]
@@ -24,3 +39,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/rotoscope_engine"]
+
+# Noetig, weil die ROCm-Wheels als direkte URL referenziert werden (siehe rocm-Extra).
+[tool.hatch.metadata]
+allow-direct-references = true

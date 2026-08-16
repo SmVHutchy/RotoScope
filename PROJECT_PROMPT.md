@@ -233,14 +233,38 @@ Herleitung in [`docs/decisions/001-inferenz-backend.md`](docs/decisions/001-infe
 | **ViT-B-Encoder (die relevante Zahl)** | **79,9 ms** → **56,2 ms** mit AOTriton | 705,6 ms → 460,8 ms |
 | VRAM-Spitze | 1,84 GB → **0,36 GB** mit AOTriton | von 16 GB |
 
-**Drei Schlüsse, die den Plan bestätigen statt ihn umzuwerfen:**
+**Drei Schlüsse:**
 
-1. **Der Proxy-Pfad trägt.** 56–80 ms für eine SAM-2-ähnliche Encoder-Last bei 960 px lassen im
-   250-ms-Budget Luft für Decoder, Maskenaufbereitung und Overhead. Die zweistufige Architektur
-   ist damit nicht nur elegant, sondern rechnerisch gedeckt.
-2. **Volle Auflösung ist Hintergrundarbeit** — 460–705 ms/Frame. Genau so geplant, jetzt belegt.
-3. **VRAM ist gegenstandslos.** Unter 2 GB von 16. Das Risiko „Modelle sequenziell laden" aus §11
+1. **Volle Auflösung ist Hintergrundarbeit** — 460–705 ms/Frame. Genau so geplant, jetzt belegt.
+2. **VRAM ist gegenstandslos.** Unter 2 GB von 16. Das Risiko „Modelle sequenziell laden" aus §11
    ist für diese Karte erledigt; der Engpass ist ausschließlich Rechenzeit.
+3. ~~Der Proxy-Pfad trägt, 56–80 ms für eine SAM-2-ähnliche Encoder-Last.~~ **Diese Hochrechnung
+   war falsch** — die echte Messung steht in §4.5.2.
+
+### 4.5.2 Echte SAM-2-Messung — und eine Korrektur
+
+`sam2.1_hiera_tiny` auf der RX 7600 XT, Eingang 960×544
+([ADR 002](docs/decisions/002-sam2-variante-und-frame-cache.md)):
+
+| | tiny | small | base_plus |
+|---|---|---|---|
+| `set_image` (Encoder, 1× pro Frame) | **280 ms** | 343 ms | 585 ms |
+| `predict` (pro Klick, gecacht) | **11,2 ms** | 11,4 ms | 11,4 ms |
+
+**Die synthetische Klammer aus §4.5.1 lag um Faktor vier daneben.** Grund: SAM 2 skaliert jedes
+Bild intern auf **1024×1024** — 4096 Tokens statt der angenommenen 2040, und Attention ist
+quadratisch. Daraus folgt direkt:
+
+> **Eine niedrigere Proxy-Auflösung macht den SAM-2-Encoder nicht schneller.**
+> Sie hilft bei Decode, Matting, Kanten, IO und Anzeige — dort bleibt sie richtig. Der einzige
+> Hebel am Encoder ist die Modellgröße und der Cache.
+
+Die Architektur trägt trotzdem, aber aus einem anderen Grund als gedacht: **Encoder und Decoder
+sind getrennt.** Der Encoder läuft einmal pro Frame und ist cachebar, der Klick läuft in 11 ms auf
+dem Cache — Faktor 20 unter dem 250-ms-Budget. **Damit ist der Frame-Cache kein
+Performance-Feature, sondern die tragende Konstruktion des interaktiven Arbeitens.** Er wird in
+M1 gebaut, zusammen mit Prefetch der Nachbarframes, der den einmaligen 280-ms-Einstieg unsichtbar
+macht.
 
 **Fund am Rande, aber mit Hebel:** PyTorch schaltet Flash- und Memory-Efficient-Attention auf AMD
 standardmäßig ab (»still experimental«). Mit `TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1` fallen

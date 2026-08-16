@@ -20,7 +20,7 @@ dem Datum der Prüfung.
 | Modell / Library | Rolle | Milestone | Status |
 |---|---|---|---|
 | SAM 3 | Text-Prompt-Segmentierung (UC-A11) | M1 | offen — Meta-eigene Lizenz, **nicht** Apache annehmen |
-| SAM 2 | interaktive Segmentierung | M1 | offen — voraussichtlich Apache-2.0, bestätigen |
+| SAM 2 | interaktive Segmentierung | M1 | **geklärt: Apache-2.0, Code UND Checkpoints, kommerziell frei** → [sam2.md](sam2.md) |
 | EfficientTAM | Proxy-Pfad | M1 | offen |
 | MatAnyone 2 | Matting (UC-A4) | M2 | offen — kommerzielle Nutzung fraglich |
 | CoTracker3 | Punkt-Stabilität (UC-A5) | M2 | offen |
