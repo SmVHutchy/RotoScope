@@ -20,8 +20,11 @@ Status: **M0 abgeschlossen, M1 begonnen** (2026-08-16).
 **M1 — Roto: gestoppt** ([ADR 003](docs/decisions/003-roto-vorerst-ueber-sammie.md)). Erreicht wurde
 Klick-Segmentierung mit Frame-Cache (12 ms pro Klick) — also etwa 10 % dessen, was
 [Sammie-Roto 2](https://github.com/Zarxrax/Sammie-Roto-2) fertig kann. Masken kommen deshalb
-vorerst aus Sammie; gebaut wird nur noch, was es sonst nirgends gibt. Erreichbar über
-`?mode=roto`, die Engine-Endpunkte bleiben bestehen.
+vorerst aus Sammie; gebaut wird nur noch, was es sonst nirgends gibt.
+
+Die **Engine-Endpunkte laufen weiter** (`/roto/session`, `/embed`, `/click`) und sind per HTTP
+nutzbar. Die zugehörige **Oberfläche ist nicht mehr in der App** — sie wurde von der
+Transition-Ansicht abgelöst und liegt in Commit `fd6c7a5`, falls sie zurückkommen soll.
 
 **M3 — Transitions + MOTIF: laufend**
 
