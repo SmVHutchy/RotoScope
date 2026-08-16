@@ -112,12 +112,35 @@ def _bench(fn, warmup: int = WARMUP, runs: int = RUNS) -> dict[str, float]:
     }
 
 
+def _vit_encoder(dim: int, layers: int, heads: int):
+    """ViT-B-artiger Encoder-Stapel.
+
+    SAM-2s Bild-Encoder (Hiera) ist kein reiner ViT, aber die Kostenstruktur ist
+    dieselbe: Self-Attention ueber Patch-Tokens, quadratisch in der Tokenzahl.
+    Der Conv-Stack allein misst das nicht -- er ist zu billig und wuerde die
+    Karte zu gut aussehen lassen.
+    """
+    import torch.nn as nn
+
+    return nn.TransformerEncoder(
+        nn.TransformerEncoderLayer(
+            d_model=dim,
+            nhead=heads,
+            dim_feedforward=dim * 4,
+            activation="gelu",
+            batch_first=True,
+            norm_first=True,
+        ),
+        num_layers=layers,
+    )
+
+
 def cmd_synthetic(args: argparse.Namespace) -> int:
     """Rohleistung ohne Modell-Download.
 
-    Ein Stapel Conv2d + Attention-artige Matmuls, grob im Zuschnitt eines
-    Vision-Encoders. Das ersetzt keine SAM-2-Messung -- es sagt frueh, ob die
-    Karte ueberhaupt in der richtigen Groessenordnung spielt.
+    Zwei Lasten: ein Conv-Stack (billig, misst die Kernel-Pipeline) und ein
+    ViT-B-artiger Encoder (teuer, misst das, was bei SAM 2 wirklich Zeit kostet).
+    Beides ersetzt keine echte SAM-2-Messung, klammert das Ergebnis aber ein.
     """
     try:
         import torch
@@ -145,28 +168,50 @@ def cmd_synthetic(args: argparse.Namespace) -> int:
         nn.Conv2d(256, 256, 3, padding=1),
     ).to(device=device, dtype=dtype).eval()
 
-    results: dict[str, dict[str, float]] = {}
+    # ViT-B-Zuschnitt: 12 Bloecke, 768 Dimensionen, Patch 16.
+    vit = _vit_encoder(dim=768, layers=12, heads=12).to(device=device, dtype=dtype).eval()
+
+    results: dict[str, dict[str, dict[str, float]]] = {"conv": {}, "vit-b": {}}
+
+    def report(kind: str, label: str, stats: dict[str, float], extra: str = "") -> None:
+        budget = BUDGET_MS.get(label)
+        verdict = ""
+        if budget:
+            verdict = "  im Budget" if stats["median_ms"] <= budget else f"  UEBER Budget ({budget} ms)"
+        print(f"{kind:<7} {label:<12} {extra:<14} median {stats['median_ms']:>8.1f} ms"
+              f"  (min {stats['min_ms']}, max {stats['max_ms']}){verdict}")
+
     with torch.inference_mode():
         for label, (width, height) in RESOLUTIONS.items():
             x = torch.randn(1, 3, height, width, device=device, dtype=dtype)
 
-            def run():
+            def run_conv():
                 stack(x)
                 torch.cuda.synchronize()
 
-            stats = _bench(run)
-            results[label] = stats
+            stats = _bench(run_conv)
+            results["conv"][label] = stats
+            report("conv", label, stats, f"{width}x{height}")
 
-            budget = BUDGET_MS.get(label)
-            verdict = ""
-            if budget:
-                verdict = "  im Budget" if stats["median_ms"] <= budget else f"  ueber Budget ({budget} ms)"
-            print(f"{label:<12} {width}x{height:<6} median {stats['median_ms']:>7.1f} ms"
-                  f"  (min {stats['min_ms']}, max {stats['max_ms']}){verdict}")
+        print()
+
+        for label, (width, height) in RESOLUTIONS.items():
+            tokens = (height // 16) * (width // 16)
+            seq = torch.randn(1, tokens, 768, device=device, dtype=dtype)
+
+            def run_vit():
+                vit(seq)
+                torch.cuda.synchronize()
+
+            # Weniger Laeufe: bei hoher Tokenzahl dauert jeder Durchgang deutlich laenger.
+            stats = _bench(run_vit, warmup=2, runs=6)
+            results["vit-b"][label] = stats
+            report("vit-b", label, stats, f"{tokens} Tokens")
 
     peak_gb = torch.cuda.max_memory_allocated() / 1024**3
-    print(f"\nVRAM Spitze: {peak_gb:.2f} GB")
-    print("Achtung: synthetischer Stack, kein SAM 2. Groessenordnung, keine Prognose.")
+    print(f"\nVRAM Spitze: {peak_gb:.2f} GB von 16 GB")
+    print("Einordnung: conv misst die Kernel-Pipeline, vit-b die Attention-Last.")
+    print("SAM 2 liegt dazwischen — das ist eine Klammer, keine Prognose.")
 
     _write(args, {
         "kind": "synthetic",
@@ -250,18 +295,22 @@ def _write(args: argparse.Namespace, payload: dict) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--out", help="Zieldatei fuer das JSON-Ergebnis")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("env", help="Was ist installiert?").set_defaults(func=cmd_env)
+    env = sub.add_parser("env", help="Was ist installiert?")
+    env.set_defaults(func=cmd_env, out=None)
 
     synthetic = sub.add_parser("synthetic", help="Rohleistung ohne Modell-Download")
     synthetic.add_argument("--fp32", action="store_true", help="statt fp16 messen")
+    # --out gehoert an die Unterbefehle, nicht nach vorn: `spike synthetic --out x`
+    # ist die Reihenfolge, die man tippt.
+    synthetic.add_argument("--out", help="Zieldatei fuer das JSON-Ergebnis")
     synthetic.set_defaults(func=cmd_synthetic)
 
     sam2 = sub.add_parser("sam2", help="Echte SAM-2-Encoder-Latenz")
     sam2.add_argument("--checkpoint", help="Pfad zur Checkpoint-Datei")
     sam2.add_argument("--config", default="configs/sam2.1/sam2.1_hiera_s.yaml")
+    sam2.add_argument("--out", help="Zieldatei fuer das JSON-Ergebnis")
     sam2.set_defaults(func=cmd_sam2)
 
     args = parser.parse_args()

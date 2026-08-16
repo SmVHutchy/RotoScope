@@ -17,6 +17,21 @@ uv run --project apps/engine-py engine --reload # mit Auto-Reload
 Nicht aus Vorsicht, sondern weil die ROCm-Wheels von AMD `cp312` sind. uv holt die passende
 Version selbst — das System-Python (3.14) bleibt unangetastet.
 
+## Zwei Umgebungen, vorerst
+
+`apps/engine-py/.venv` (FastAPI + ONNX/DirectML) und `.venv-rocm` (torch/ROCm) existieren
+nebeneinander — für den M0-Spike war das die saubere Trennung, für M1 ist es eine Altlast.
+Zusammenführen, bevor Modellcode entsteht (ADR 001, Konsequenz 7).
+
+## AOTriton-Attention ist standardmäßig an
+
+Die Engine setzt `TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1` (ADR 001: −30 % Latenz, −80 % VRAM).
+Abschalten für den Korrektheitsvergleich:
+
+```bash
+ROTOSCOPE_AOTRITON=0 uv run --project apps/engine-py engine
+```
+
 ## Torch ist absichtlich keine Abhängigkeit
 
 Welcher Inferenz-Stack installiert wird, entscheidet der M0-Spike

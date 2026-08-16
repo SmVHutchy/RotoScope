@@ -6,15 +6,20 @@ Lokal, offline, jeder Parameter offen.
 **Das verbindliche Briefing ist [PROJECT_PROMPT.md](PROJECT_PROMPT.md).** Architektur, Use-Cases,
 Bausteine, Milestones und die Sprachdefinition stehen dort — nicht hier.
 
-Status: **M0 — Skelett steht und läuft. Hardware-Spike zur Hälfte gemessen.**
+Status: **M0 abgeschlossen** (2026-08-16). Nächster Schritt: M1 — Roto Core.
 
 | M0-Punkt | Stand |
 |---|---|
 | Monorepo, Engine, CLI | ✅ läuft |
 | Web-App zeigt Frame 0 (mediabunny + WebCodecs) | ✅ verifiziert, 1280×720 in ~31 ms dekodiert |
-| Inferenz-Pfad B (ONNX Runtime + DirectML) | ✅ installiert, `DmlExecutionProvider` gemeldet |
-| Inferenz-Pfad A (PyTorch + ROCm) | ⬜ offen — mehrere GB Download, braucht Treiber-Check |
-| Latenz-Messung mit echtem Modell | ⬜ offen — hängt an Pfad A |
+| Inferenz-Pfad A (PyTorch + ROCm) | ✅ `torch 2.9.1+rocm7.2.1`, HIP 7.2, GPU sichtbar |
+| Inferenz-Pfad B (ONNX Runtime + DirectML) | ✅ `DmlExecutionProvider` verfügbar |
+| Latenz gemessen, Backend entschieden | ✅ [ADR 001](docs/decisions/001-inferenz-backend.md) |
+| Messung mit echten SAM-2-Gewichten | ⬜ M1 — hängt am Modell-Download und der Lizenzprüfung |
+
+**Kernzahl aus dem Spike:** ViT-B-Encoder-Last bei 960 px in **56 ms** (fp16, mit AOTriton-Attention),
+bei 1920 px in 461 ms, VRAM-Spitze 0,36 GB von 16 GB. Der interaktive Proxy-Pfad trägt, volle
+Auflösung bleibt Hintergrundarbeit — genau wie geplant, jetzt belegt.
 
 ---
 

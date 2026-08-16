@@ -1,5 +1,13 @@
 # M0 — Hardware-Spike: Welches Inferenz-Backend trägt auf dieser Karte?
 
+> **Gelaufen am 2026-08-16. Ergebnis: Pfad A trägt.** `torch 2.9.1+rocm7.2.1`, HIP 7.2,
+> ViT-B-Last bei 960 px in 56 ms. Zahlen und Entscheidung in
+> [ADR 001](../../docs/decisions/001-inferenz-backend.md). Was unten steht, ist die Anleitung
+> zum Nachvollziehen und Wiederholen — etwa nach einem Treiber- oder ROCm-Update.
+>
+> **Nicht vergessen:** `TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1` bringt −30 % Latenz und
+> −80 % VRAM. Die Engine setzt die Variable inzwischen selbst.
+
 **Zielhardware:** AMD Radeon RX 7600 XT — Navi 33, **gfx1102**, 16 GB, Windows 11.
 Kein CUDA, kein TensorRT. Siehe [PROJECT_PROMPT.md §4.5](../../PROJECT_PROMPT.md).
 

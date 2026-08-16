@@ -1,7 +1,7 @@
 # ADR 001 — Inferenz-Backend auf AMD/Windows
 
-**Status:** teilweise gemessen — Pfad B bestätigt, Pfad A steht aus
-**Datum:** 2026-08-16 (erste Messung)
+**Status:** **entschieden** — Pfad A (ROCm) primär, Pfad B (DirectML) sekundär
+**Datum:** 2026-08-16
 **Betrifft:** M1 (Roto Core), Modellauswahl ab M2, UC-E7
 
 ## Kontext
@@ -23,26 +23,76 @@ Drei Pfade stehen zur Wahl (Details und Installationsbefehle: `scripts/spike/REA
 Ausgeführt mit `python scripts/spike/spike_inference.py …`.
 **Diese Tabelle ist auszufüllen, bevor M1 geplant wird.**
 
-| Pfad | Installation lief durch | GPU-Provider sichtbar | synthetic proxy-960 | synthetic full-1920 | SAM 2 Encoder proxy-960 | VRAM Spitze |
-|---|---|---|---|---|---|---|
-| A — ROCm nativ | ☐ offen | ☐ | — ms | — ms | — ms | — GB |
-| B — ONNX/DirectML | ☑ ja | ☑ `DmlExecutionProvider` | — ms | — ms | — ms | — GB |
-| C — WSL2 | ☐ nicht nötig, solange A oder B trägt | ☐ | — ms | — ms | — ms | — GB |
+| Pfad | Installation | GPU sichtbar | Messung |
+|---|---|---|---|
+| **A — ROCm nativ** | ☑ `torch 2.9.1+rocm7.2.1`, HIP `7.2.53211` | ☑ `AMD Radeon RX 7600 XT` | ☑ vollständig, siehe unten |
+| B — ONNX/DirectML | ☑ `onnxruntime-directml 1.24.4` | ☑ `DmlExecutionProvider` | ☐ Provider bestätigt, keine Kernel-Messung (braucht ONNX-Modell) |
+| C — WSL2 | ☐ nicht nötig — A trägt | — | — |
 
-Umgebung zum Zeitpunkt der Messung:
+### Gemessen: synthetische Lasten, fp16, Median aus 6–12 Läufen
+
+`python scripts/spike/spike_inference.py synthetic`
+
+| Last | Auflösung | Standard | mit `TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1` |
+|---|---|---|---|
+| Conv-Stack | proxy-960 (960×544) | 2,2 ms | 2,1 ms |
+| Conv-Stack | full-1920 (1920×1088) | 7,4 ms | 7,6 ms |
+| **ViT-B-Encoder** | **proxy-960 (2040 Tokens)** | **79,9 ms** | **56,2 ms** |
+| **ViT-B-Encoder** | full-1920 (8160 Tokens) | 705,6 ms | 460,8 ms |
+| VRAM Spitze | — | 1,84 GB | **0,36 GB** |
+
+Umgebung:
 
 | | |
 |---|---|
-| GPU | AMD Radeon RX 7600 XT, Treiber 32.0.31019.2002 (WDDM) — **Adrenalin-Version noch prüfen, ROCm 7.2.1 verlangt 26.2.2+** |
+| GPU | AMD Radeon RX 7600 XT, Adrenalin `26.10.19.02` (Treiberdatum 2026-05-29) — Anforderung ROCm 7.2.1 (≥ 26.2.2) erfüllt |
 | OS | Windows 11 (AMD64) |
-| Python | 3.12.13 (uv-verwaltet; System-Python 3.14 wird nicht benutzt) |
-| onnxruntime | 1.24.4 (`onnxruntime-directml`), Provider: `DmlExecutionProvider`, `CPUExecutionProvider` |
-| torch / ROCm | nicht installiert |
+| Python | 3.12.13, uv-verwaltet — System-Python 3.14 bleibt unangetastet |
+| torch | 2.9.1+rocm7.2.1, HIP 7.2.53211-158bd99533 |
+| onnxruntime | 1.24.4 (DirectML) |
 
-**Was am 2026-08-16 tatsächlich belegt ist:** Pfad B installiert sauber in die 3.12-Umgebung und
-meldet den DirectML-Provider — der DX12-Weg auf dieser Karte steht also grundsätzlich offen.
-**Was noch nicht belegt ist:** dass darüber auch echte Kernel in brauchbarer Zeit laufen. Dafür
-fehlt ein Modell; die Provider-Meldung allein ist kein Leistungsnachweis.
+**Der ViT-B-Wert ist die relevante Zahl**, nicht der Conv-Stack: SAM 2s Bild-Encoder (Hiera) hat
+dieselbe Kostenstruktur — Self-Attention über Patch-Tokens, quadratisch in der Tokenzahl. Der
+Conv-Stack misst nur, ob die Kernel-Pipeline gesund ist (sie ist es).
+
+## Entscheidung
+
+**Primärpfad: A — PyTorch + ROCm, Windows-nativ.** Läuft, ist schnell genug, und deckt alle
+Modelle ab, ohne einen ONNX-Export zu erzwingen.
+
+**Zweitpfad: B — ONNX Runtime + DirectML.** Bleibt gepflegt, weil er ohne ROCm-Installation
+auskommt und damit der Weg ist, das Tool je an andere Rechner auszuliefern.
+
+**Pfad C entfällt**, solange A trägt. Kein Dual-Boot.
+
+**`TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1` wird gesetzt** — die Engine setzt die Variable
+selbst, mit Abschaltmöglichkeit. Begründung: −30 % Latenz und −80 % VRAM sind zu viel, um sie
+liegen zu lassen. Risiko: PyTorch nennt die Attention-Kernel auf AMD ausdrücklich experimentell,
+also braucht M1 einen Korrektheitsvergleich der Maskenausgabe mit und ohne die Variable, bevor
+sie als Default festgeschrieben wird.
+
+## Konsequenzen
+
+1. **Der Proxy-Pfad trägt.** 56–80 ms für eine ViT-B-Encoder-Last bei 960 px lassen im
+   250-ms-Budget für die Klick-Korrektur genug Luft für Decoder, Maskenaufbereitung und
+   Netzwerk-Overhead. Die zweistufige Architektur aus §4.5 wird nicht nur gebaut, weil sie
+   sauber ist, sondern weil die Zahlen sie tragen.
+2. **Volle Auflösung bleibt Hintergrundarbeit.** 460–705 ms/Frame ist definitiv kein
+   interaktives Budget. Genau so war es geplant — jetzt ist es belegt statt vermutet.
+3. **VRAM ist kein Thema.** 0,36–1,84 GB von 16 GB. Modelle können gleichzeitig geladen
+   bleiben; das Risiko „sequenziell laden/entladen" aus §11 ist für diese Karte gegenstandslos.
+4. **SAM 3 als Hintergrund-Pass bleibt realistisch.** Ein Einmal-Lauf pro Shot im
+   Sekundenbereich ist bei diesen Zahlen plausibel. Bestätigen muss das erst die
+   `sam2`/`sam3`-Stufe des Spikes mit echten Gewichten.
+5. **Offen und in M1 zu klären:** echte SAM-2-Encoder-Messung mit Checkpoint (die synthetische
+   Klammer ersetzt sie nicht), ONNX-Exportierbarkeit von MatAnyone 2 und CoTracker3 für Pfad B,
+   und die Korrektheitsprüfung der experimentellen Attention-Kernel.
+6. **UC-A7 (Object Removal) bleibt vorerst im Scope**, aber DiffuEraser ist bei diesen Werten
+   klar Nacht-Batch. Entscheidung vertagt bis M3.
+7. **Schuld aus M0:** es existieren zwei Python-Umgebungen — `apps/engine-py/.venv` (FastAPI +
+   DirectML) und `.venv-rocm` (torch/ROCm). Für den Spike war die Trennung richtig, für M1 ist
+   sie es nicht: die Engine muss in der Umgebung laufen, die auch das gewählte Backend hat.
+   Erste Aufgabe in M1, bevor Modellcode entsteht.
 
 ## Entscheidung
 

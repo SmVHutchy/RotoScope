@@ -24,10 +24,10 @@ Noch nicht da (siehe PROJECT_PROMPT.md):
 `;
 
 /** Engine abfragen, ohne bei Verbindungsfehlern zu werfen. */
-async function ask(path) {
+async function ask(path, timeoutMs = 2000) {
   try {
     const res = await fetch(`${ENGINE_URL}${path}`, {
-      signal: AbortSignal.timeout(2000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
     return { ok: true, data: await res.json() };
@@ -52,7 +52,8 @@ async function doctor() {
   } else {
     lines.push(`engine      ok, v${health.data.version} auf ${ENGINE_URL}`);
 
-    const device = await ask('/device');
+    // Grosszuegiger: laeuft die Engine kalt, kostet allein der torch-Import Sekunden.
+    const device = await ask('/device', 20000);
     if (!device.ok) {
       lines.push(`device      /device antwortet nicht (${device.error})`);
       lines.push(`            Engine-Log pruefen — ein Backend-Probe ist abgestuerzt.`);

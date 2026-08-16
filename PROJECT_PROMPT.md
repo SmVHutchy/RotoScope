@@ -195,7 +195,7 @@ Also: reale Optionen, reale Erwartungen.
 
 | Pfad | Stand August 2026 | Bewertung für dieses Projekt |
 |---|---|---|
-| **PyTorch + ROCm (Windows-nativ)** | ROCm 7 gilt inzwischen als First-Class-PyTorch-Backend. Es gibt PyTorch-ROCm-Wheels für RDNA 3/4 unter Windows 11 (ComfyUI läuft damit), Installation über den HIP-SDK-Installer. gfx1102 (Navi 33) ist abgedeckt. | **Primärer Pfad.** Bequemster Weg, größte Modellabdeckung. Aber: Kernel-Optimierungen sind auf die großen Chips getunt, nicht auf Navi 33 — Leistung liegt unter dem, was die Rohdaten der Karte nahelegen. |
+| **PyTorch + ROCm (Windows-nativ)** | ROCm 7 gilt inzwischen als First-Class-PyTorch-Backend. AMD liefert `cp312`-Wheels für RDNA 3/4 unter Windows 11; gfx1102 (Navi 33) ist abgedeckt. | **Primärer Pfad — am 2026-08-16 bestätigt** (§4.5.1). Installation lief durch, Karte wird gesehen, Werte im Zielkorridor. |
 | PyTorch + ROCm unter Linux/WSL2 | Deutlich ausgereifter als Windows-nativ; „für das volle Erlebnis braucht man Linux". Performance-Abstand zu CUDA auf vergleichbarer Klasse ~15–25 %. | **Rückfallebene**, falls Windows-nativ zickt. Kostet einen Dual-Boot oder WSL2-Setup — und WSL2-ROCm ist selbst nicht für alle Karten freigegeben. Der Spike in M0 entscheidet das, nicht die Vermutung. |
 | **ONNX Runtime + DirectML EP** | Vendor-neutral über DirectX 12, läuft auf jeder DX12-GPU. AMD investiert 2026 sichtbar in Windows ML und den ONNX-Runtime-GPU-EP; neues Plugin-Interface trennt GPU-Backend vom Runtime-Kern. | **Zweiter Pfad, nicht optional.** Robuster und einfacher auszuliefern als ROCm. Haken: das Modell muss sauber nach ONNX exportierbar sein — beim SAM-Bild-Encoder unproblematisch, beim Video-Memory-Attention und bei MatAnyone/CoTracker **vorher verifizieren**. |
 | ZLUDA / CUDA-Emulation | Existiert, ist aber instabil und rechtlich unsauber. | **Nicht einplanen.** |
@@ -222,13 +222,34 @@ Also: reale Optionen, reale Erwartungen.
 | Propagation über 100 Frames, Proxy | **< 60 s** | Als Hintergrundjob mit Fortschrittsanzeige, blockiert nichts |
 | Volle Auflösung + Matting | Batch | Läuft im Hintergrund, Ergebnis ersetzt die Proxy-Version im Cache |
 
-Die konkreten Zahlen werden in M0 **gemessen, nicht geschätzt** — die Tabelle ist der Zielkorridor,
-der Spike liefert die Wahrheit. Die gute Nachricht: **die Transition- und Grade-Seite ist von alldem
-nicht betroffen.** WebGPU läuft auf der 7600 XT problemlos, GLSL-Shader sind für diese Karte
-Kinderkram. Der Schmerz sitzt ausschließlich im ML-Teil.
+### 4.5.1 Gemessen am 2026-08-16 — der Spike ist gelaufen
 
-Zweiter Trost: 16 GB VRAM sind für diese Leistungsklasse üppig. Das „Modelle sequenziell laden"-Risiko
-aus §11 entschärft sich — es gibt Platz für SAM 2 + Matting gleichzeitig. Der Engpass ist Rechenzeit.
+Pfad A steht: `torch 2.9.1+rocm7.2.1`, HIP 7.2, die Karte wird gesehen. Vollständige Werte und
+Herleitung in [`docs/decisions/001-inferenz-backend.md`](docs/decisions/001-inferenz-backend.md).
+
+| Last (fp16, Median) | proxy-960 | full-1920 |
+|---|---|---|
+| Conv-Stack (Kernel-Pipeline) | 2,2 ms | 7,4 ms |
+| **ViT-B-Encoder (die relevante Zahl)** | **79,9 ms** → **56,2 ms** mit AOTriton | 705,6 ms → 460,8 ms |
+| VRAM-Spitze | 1,84 GB → **0,36 GB** mit AOTriton | von 16 GB |
+
+**Drei Schlüsse, die den Plan bestätigen statt ihn umzuwerfen:**
+
+1. **Der Proxy-Pfad trägt.** 56–80 ms für eine SAM-2-ähnliche Encoder-Last bei 960 px lassen im
+   250-ms-Budget Luft für Decoder, Maskenaufbereitung und Overhead. Die zweistufige Architektur
+   ist damit nicht nur elegant, sondern rechnerisch gedeckt.
+2. **Volle Auflösung ist Hintergrundarbeit** — 460–705 ms/Frame. Genau so geplant, jetzt belegt.
+3. **VRAM ist gegenstandslos.** Unter 2 GB von 16. Das Risiko „Modelle sequenziell laden" aus §11
+   ist für diese Karte erledigt; der Engpass ist ausschließlich Rechenzeit.
+
+**Fund am Rande, aber mit Hebel:** PyTorch schaltet Flash- und Memory-Efficient-Attention auf AMD
+standardmäßig ab (»still experimental«). Mit `TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1` fallen
+**30 % Latenz und 80 % VRAM** weg. Die Engine setzt die Variable — aber M1 schuldet einen
+Korrektheitsvergleich der Maskenausgabe mit und ohne, bevor das ein Default bleibt.
+
+Die gute Nachricht bleibt: **die Transition- und Grade-Seite ist von alldem nicht betroffen.**
+WebGPU läuft auf der 7600 XT problemlos, GLSL-Shader sind für diese Karte Kinderkram. Der Schmerz
+sitzt ausschließlich im ML-Teil — und er ist kleiner als befürchtet.
 
 ### 4.6 Pipeline & Interchange — was ein Studio-Tool von einem Solo-Tool trennt
 
@@ -453,6 +474,9 @@ Jeder Milestone hat ein **Abnahmekriterium**, das man vorführen kann. Nicht „
   festhalten: welcher Pfad, welche ms/Frame bei 960 px und bei voller Auflösung, welcher VRAM.
   *Abnahme: Dev-Server startet und zeigt Frame 0 — und es existiert eine gemessene Zahl für die
   Inferenz-Latenz. Ohne diese Zahl wird M1 nicht geplant.*
+  **→ erledigt am 2026-08-16.** Skelett läuft (Engine, CLI, Viewer mit Frame 0 in 31 ms),
+  Spike gemessen (§4.5.1), ADR 001 entschieden. Offen bleibt nur die Messung mit echten
+  SAM-2-Gewichten — die gehört in M1, weil sie am Modell-Download hängt.
 - **M1 — Roto Core.** UC-A1/A2/A3/**A11**/**E7**, E1/E2. **Engine-Interface backend-agnostisch** (ROCm | DirectML),
   SAM 2/EfficientTAM interaktiv auf Proxy, SAM 3 als Text-Prompt-Hintergrundpass, Propagation,
   Korrektur ohne Tracking-Verlust, Frame-Cache.
