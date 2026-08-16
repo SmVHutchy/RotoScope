@@ -17,19 +17,25 @@ Status: **M0 abgeschlossen, M1 begonnen** (2026-08-16).
 | Latenz gemessen, Backend entschieden | ✅ [ADR 001](docs/decisions/001-inferenz-backend.md) |
 | Messung mit echten SAM-2-Gewichten | ✅ [ADR 002](docs/decisions/002-sam2-variante-und-frame-cache.md) |
 
-**M1 — laufend:**
+**M1 — Roto: gestoppt** ([ADR 003](docs/decisions/003-roto-vorerst-ueber-sammie.md)). Erreicht wurde
+Klick-Segmentierung mit Frame-Cache (12 ms pro Klick) — also etwa 10 % dessen, was
+[Sammie-Roto 2](https://github.com/Zarxrax/Sammie-Roto-2) fertig kann. Masken kommen deshalb
+vorerst aus Sammie; gebaut wird nur noch, was es sonst nirgends gibt. Erreichbar über
+`?mode=roto`, die Engine-Endpunkte bleiben bestehen.
+
+**M3 — Transitions + MOTIF: laufend**
 
 | Aufgabe | Stand |
 |---|---|
-| Eine Python-Umgebung statt zwei (ADR 001, Konsequenz 7) | ✅ `uv sync --extra rocm --extra directml` |
-| SAM 2 Lizenzprüfung vor Download (Regel 4) | ✅ Apache-2.0, Code und Gewichte |
-| SAM 2 installiert, Varianten vermessen | ✅ tiny / small / base_plus |
-| Backend-agnostisches Modell-Interface | ⬜ als Nächstes |
-| Frame-Cache + Prefetch | ⬜ als Nächstes — laut ADR 002 tragende Konstruktion |
+| gl-transitions als Node-Katalog (UC-B9) | ✅ 125 Übergänge, MIT/BSD |
+| WebGL2-Runtime ([ADR 004](docs/decisions/004-webgl2-statt-webgpu.md)) | ✅ < 1 ms pro Frame bei 1280×720 |
+| Parameter-Inspector, jeder Parameter live (UC-C1) | ✅ Tweakpane, automatisch aus den Uniforms |
+| Übergang zwischen zwei echten Frames (UC-B1) | ✅ |
+| `.motif`-Format: lesen, schreiben, approven (UC-C2/C3) | ⬜ als Nächstes |
+| Zeitachse über GSAP, Ease und Dauer (UC-B3) | ⬜ |
 
-**Kernzahl:** SAM 2 `tiny` braucht **280 ms** für das Frame-Embedding, aber nur **11 ms** pro Klick,
-sobald das Embedding im Cache liegt — gegen ein Budget von 250 ms. Interaktives Arbeiten steht und
-fällt damit mit dem Cache, nicht mit der Modellgeschwindigkeit.
+Ausprobieren: `npm run dev`, dann `http://localhost:5173/?clip=/dev-sample.mp4` — Übergang wählen,
+Regler ziehen, `progress` scrubben.
 
 ---
 

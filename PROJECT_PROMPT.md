@@ -362,7 +362,9 @@ Die Sprache, das UI und die Motion-Semantik gehören dorthin, wo auch GSAP und d
 Die Brücke ist die IR (JSON) + ein lokaler Socket. Beides ist ersetzbar, ohne das andere anzufassen.
 
 **Rendering:** GSAP treibt **Zeit** (Timeline, Ease, Stagger, Scrub) — nicht die Pixel. Die Pixel
-macht WebGPU über gl-transition-kompatible Shader. Das ist bewusst getrennt: so ist die Zeitachse
+macht **WebGL2** über gl-transition-Shader ([ADR 004](docs/decisions/004-webgl2-statt-webgpu.md):
+die Sammlung ist GLSL, WebGPU wäre WGSL und damit 125 Transpilationen ohne Gegenwert; WebGPU bleibt
+für Compute-Aufgaben wie Histogramme im Look-Transfer). Das ist bewusst getrennt: so ist die Zeitachse
 überall gleich (Web/AE/Headless), auch wenn die Pixel-Backends unterschiedlich sind.
 WebGPU ist seit Januar 2026 Baseline in allen großen Browsern (§4.7) — der WebGL2-Fallback bleibt
 trotzdem drin, solange Firefox/Linux und Android nachziehen.
@@ -491,6 +493,13 @@ Sonst sieht 50 % Look aus wie ein halbtransparenter Filter statt wie ein halb so
 ## 10. Milestones
 
 Jeder Milestone hat ein **Abnahmekriterium**, das man vorführen kann. Nicht „fertig", sondern „zeigbar".
+
+> **Reihenfolge geändert am 2026-08-16** ([ADR 003](docs/decisions/003-roto-vorerst-ueber-sammie.md)):
+> Der Roto-Eigenbau ist gestoppt, Masken kommen vorerst aus Sammie-Roto 2. Grund: M1–M2 haben
+> nachgebaut, was Sammie bereits vollständig kann, während alles Unterscheidende — Transitions,
+> MOTIF, Look-Transfer — unangetastet blieb. **Neue Reihenfolge: M3 zuerst, dann Look-Transfer,
+> danach ggf. Bezier-Splines.** M1 bleibt als Teilstück stehen (Klick-Segmentierung läuft), M2
+> ist ausgesetzt.
 
 - **M0 — Skelett + Hardware-Spike.** Monorepo, `rotoc --version`, Web-App zeigt ein Video (mediabunny), Python-Engine antwortet auf `/health`.
   **Und, davor:** SAM 2 auf der RX 7600 XT zum Laufen bringen — erst PyTorch-ROCm Windows-nativ,
