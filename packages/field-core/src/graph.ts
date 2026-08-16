@@ -12,6 +12,7 @@
 import { combine, mirror, sampleRings, type CombineMode, type RingProfile } from './field.ts';
 import { evaluateShape, type ShapeKind, type Vec2 } from './shapes.ts';
 import { sampleRamp, type PalettePreset } from './palette.ts';
+import { copyCount, copyTransform, NO_REPEAT, type RepeatSpec } from './repeat.ts';
 import type { Rgb } from '@rotoscope/grade-core';
 
 /** Obergrenze aus Spec §4 — begrenzt durch die Uniform-Kapazitaet von WebGL2. */
@@ -37,6 +38,8 @@ export type FieldGraph = {
   palette: PalettePreset;
   /** Weiches Leuchten nach aussen, 0 bis 1 (Referenzbild 1 und 4). */
   glow: number;
+  /** Vervielfaeltigung der Formen (Referenzbild 3). */
+  repeat: RepeatSpec;
 };
 
 /** Formparameter aus der einheitlichen Darstellung ableiten. */
@@ -66,13 +69,9 @@ function paramsOf(shape: ShapeNode) {
   }
 }
 
-/** Abstand zum kombinierten Feld. Referenz fuer Tests und spaeter fuer die Isolinien. */
-export function evaluateField(graph: FieldGraph, point: Vec2): number {
-  if (!graph.shapes.length) return Number.POSITIVE_INFINITY;
-
-  const p = mirror(point, graph.mirrorAxis);
+/** Abstand aller Formen an einem Punkt, ohne Vervielfaeltigung. */
+function combinedShapes(graph: FieldGraph, p: Vec2): number {
   let distance = evaluateShape(graph.shapes[0].kind, p, paramsOf(graph.shapes[0]) as never);
-
   for (let i = 1; i < Math.min(graph.shapes.length, MAX_SHAPES); i++) {
     const shape = graph.shapes[i];
     const next = evaluateShape(shape.kind, p, paramsOf(shape) as never);
@@ -82,13 +81,49 @@ export function evaluateField(graph: FieldGraph, point: Vec2): number {
 }
 
 /**
+ * Abstand zum Feld und die naechstgelegene Kopie.
+ *
+ * Der Kopienindex faellt hier mit ab, weil die Palette ihn lesen kann — nachtraeglich
+ * ermitteln hiesse, dieselbe Schleife ein zweites Mal zu laufen.
+ */
+export function evaluateFieldWithCopy(
+  graph: FieldGraph,
+  point: Vec2,
+): { distance: number; copy: number } {
+  if (!graph.shapes.length) return { distance: Number.POSITIVE_INFINITY, copy: 0 };
+
+  const p = mirror(point, graph.mirrorAxis);
+  const repeat = graph.repeat ?? NO_REPEAT;
+  const copies = copyCount(repeat);
+
+  let distance = Number.POSITIVE_INFINITY;
+  let copy = 0;
+
+  for (let c = 0; c < copies; c++) {
+    const transformed = copyTransform(p, c, repeat);
+    // Der Faktor rechnet den Abstand aus dem geschrumpften Bezugssystem zurueck.
+    const d = combinedShapes(graph, transformed.point) * transformed.factor;
+    if (d < distance) {
+      distance = d;
+      copy = c;
+    }
+  }
+  return { distance, copy };
+}
+
+/** Abstand zum kombinierten Feld. Referenz fuer Tests und spaeter fuer die Isolinien. */
+export function evaluateField(graph: FieldGraph, point: Vec2): number {
+  return evaluateFieldWithCopy(graph, point).distance;
+}
+
+/**
  * Farbe an einem Punkt — die vollstaendige Kette.
  *
  * Diese Funktion ist die Wahrheit, gegen die der Shader im Golden-Frame-Vergleich
  * geprueft wird (Spec §9).
  */
 export function shadeField(graph: FieldGraph, point: Vec2): Rgb {
-  const distance = evaluateField(graph, point);
+  const { distance, copy } = evaluateFieldWithCopy(graph, point);
   const { palette, rings } = graph;
 
   const background = Array.isArray(palette.background[0])
@@ -99,8 +134,16 @@ export function shadeField(graph: FieldGraph, point: Vec2): Rgb {
   if (distance > 0 && graph.glow <= 0) return background;
 
   const sample = sampleRings(distance, rings);
-  const cycle = palette.repeat ?? Math.max(1, palette.stops.length);
-  const t = (sample.index % cycle) / Math.max(1, cycle - 1 || 1);
+
+  // Zwei Quellen fuer die Rampe: der Bandindex (Bild 1, 4, 5) oder der Kopienindex
+  // (Bild 3). Das ist das Merkmal, das ein Preset zur Farbliste unterscheidet.
+  let t: number;
+  if (palette.source === 'index') {
+    t = copy / Math.max(1, copyCount(graph.repeat ?? NO_REPEAT) - 1);
+  } else {
+    const cycle = palette.repeat ?? Math.max(1, palette.stops.length);
+    t = (sample.index % cycle) / Math.max(1, cycle - 1 || 1);
+  }
   const banded = sampleRamp(palette.stops, Math.max(0, Math.min(1, t)));
 
   const withSeparator =

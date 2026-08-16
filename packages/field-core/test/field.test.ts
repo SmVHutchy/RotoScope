@@ -171,3 +171,40 @@ test('ohne Leuchten ist weit draussen exakt der Hintergrund', () => {
   const bg = graph.palette.background as [number, number, number];
   for (let i = 0; i < 3; i++) assert.ok(Math.abs(rgb[i] - bg[i]) < 1e-9);
 });
+
+test('Repeater versetzt, skaliert und liefert den Kopienindex', async () => {
+  const { copyTransform, copyCount, MAX_COPIES } = await import('../src/repeat.ts');
+
+  const repeat = { count: 4, offset: [0, -0.5] as [number, number], scale: 0.9, rotation: 0 };
+  // Kopie 0 ist unveraendert.
+  const erste = copyTransform([0.3, 0.2], 0, repeat);
+  assert.deepEqual(erste.point, [0.3, 0.2]);
+  assert.equal(erste.factor, 1);
+
+  // Kopie 2 ist zweimal versetzt und zweimal geschrumpft.
+  const dritte = copyTransform([0, -1], 2, repeat);
+  assert.ok(Math.abs(dritte.factor - 0.81) < 1e-9, 'Faktor ist scale hoch Kopie');
+  assert.ok(Math.abs(dritte.point[1] - 0) < 1e-9, 'Versatz herausgerechnet');
+
+  assert.equal(copyCount({ ...repeat, count: 99 }), MAX_COPIES, 'Obergrenze greift');
+  assert.equal(copyCount({ ...repeat, count: 0 }), 1, 'mindestens eine Kopie');
+});
+
+test('Stapel-Preset faerbt ueber den Kopienindex, nicht ueber den Abstand', async () => {
+  const { evaluateFieldWithCopy } = await import('../src/graph.ts');
+  const graph = fieldPresetByName('Stapel').graph;
+
+  assert.equal(graph.palette.source, 'index');
+  assert.ok(graph.repeat.count > 1, 'mehrere Kopien');
+
+  // Oben liegt die erste Kopie, weiter unten eine spaetere.
+  const oben = evaluateFieldWithCopy(graph, [0, 0.55]);
+  const unten = evaluateFieldWithCopy(graph, [0, -0.4]);
+  assert.equal(oben.copy, 0, 'oben ist Kopie 0');
+  assert.ok(unten.copy > oben.copy, `unten liegt eine spaetere Kopie: ${unten.copy}`);
+
+  // Und die Farbe unterscheidet sich, weil die Rampe den Index liest.
+  const farbeOben = shadeField(graph, [0, 0.55]);
+  const farbeUnten = shadeField(graph, [0, -0.4]);
+  assert.notDeepEqual(farbeOben, farbeUnten);
+});

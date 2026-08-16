@@ -11,6 +11,7 @@
  */
 
 import { FIELD_GLSL } from './field.ts';
+import { MAX_COPIES, REPEAT_GLSL } from './repeat.ts';
 import { SHAPE_GLSL } from './shapes.ts';
 import { MAX_SHAPES } from './graph.ts';
 
@@ -52,8 +53,15 @@ uniform vec3 uSeparator;
 uniform float uHasSeparator;
 uniform float uGlow;
 
+uniform int uRepeatCount;
+uniform vec2 uRepeatOffset;
+uniform float uRepeatScale;
+uniform float uRepeatRotation;
+uniform int uRampSource;
+
 ${SHAPE_GLSL}
 ${FIELD_GLSL}
+${REPEAT_GLSL}
 
 /**
  * Die Werte kommen herein, nicht der Index.
@@ -81,20 +89,37 @@ void main() {
   vec2 p = (vUv - 0.5) * vec2(uResolution.x / uResolution.y, 1.0) * 2.0;
   p = fieldMirror(p, uMirror);
 
+  // Aeussere Schleife ueber die Kopien, innere ueber die Formen. Der Kopienindex
+  // der naechstgelegenen Kopie faellt mit ab -- die Palette kann ihn lesen (Bild 3).
   float distance = 1e9;
-  for (int i = 0; i < ${MAX_SHAPES}; i++) {
-    if (i >= uShapeCount) break;
-    float d = shapeDistance(uShapeKind[i], uShapeA[i], uShapeB[i], p);
-    if (i == 0) {
-      distance = d;
-    } else if (uCombineMode == 0) {
-      distance = fieldUnion(distance, d);
-    } else if (uCombineMode == 1) {
-      distance = fieldSubtract(distance, d);
-    } else if (uCombineMode == 2) {
-      distance = fieldIntersect(distance, d);
-    } else {
-      distance = fieldSmoothUnion(distance, d, uSmoothness);
+  float nearestCopy = 0.0;
+
+  for (int c = 0; c < ${MAX_COPIES}; c++) {
+    if (c >= uRepeatCount) break;
+    vec3 transformed = fieldCopyTransform(p, float(c), uRepeatOffset, uRepeatScale, uRepeatRotation);
+    vec2 q = transformed.xy;
+
+    float local = 1e9;
+    for (int i = 0; i < ${MAX_SHAPES}; i++) {
+      if (i >= uShapeCount) break;
+      float d = shapeDistance(uShapeKind[i], uShapeA[i], uShapeB[i], q);
+      if (i == 0) {
+        local = d;
+      } else if (uCombineMode == 0) {
+        local = fieldUnion(local, d);
+      } else if (uCombineMode == 1) {
+        local = fieldSubtract(local, d);
+      } else if (uCombineMode == 2) {
+        local = fieldIntersect(local, d);
+      } else {
+        local = fieldSmoothUnion(local, d, uSmoothness);
+      }
+    }
+
+    local *= transformed.z;
+    if (local < distance) {
+      distance = local;
+      nearestCopy = float(c);
     }
   }
 
@@ -107,7 +132,9 @@ void main() {
   vec3 rings = fieldRings(shifted, uSpacing, uCurve, uHardness, uLine);
 
   float cycle = max(1.0, uRepeat);
-  float t = mod(rings.x, cycle) / max(1.0, cycle - 1.0);
+  float t = uRampSource == 1
+    ? nearestCopy / max(1.0, float(uRepeatCount) - 1.0)
+    : mod(rings.x, cycle) / max(1.0, cycle - 1.0);
   vec3 banded = texture2D(uRamp, vec2(clamp(t, 0.0, 1.0), 0.5)).rgb;
   vec3 colour = mix(banded, uSeparator, uHasSeparator * step(0.5, rings.z));
 

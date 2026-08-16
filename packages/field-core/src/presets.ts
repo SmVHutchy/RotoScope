@@ -7,6 +7,7 @@
  */
 
 import { presetByName } from './palette.ts';
+import { NO_REPEAT } from './repeat.ts';
 import type { FieldGraph } from './graph.ts';
 
 export type FieldPreset = { name: string; note: string; graph: FieldGraph };
@@ -27,6 +28,7 @@ export const FIELD_PRESETS: FieldPreset[] = [
       rings: { spacing: 0.045, curve: 0.85, hardness: 1, line: 0.16, stagger: 0 },
       palette: presetByName('Amoebe'),
       glow: 0,
+      repeat: NO_REPEAT,
     },
   },
   {
@@ -42,6 +44,7 @@ export const FIELD_PRESETS: FieldPreset[] = [
       rings: { spacing: 0.07, curve: 1, hardness: 1, line: 0, stagger: 0 },
       palette: presetByName('Club'),
       glow: 0.5,
+      repeat: NO_REPEAT,
     },
   },
   {
@@ -58,6 +61,7 @@ export const FIELD_PRESETS: FieldPreset[] = [
       rings: { spacing: 0.12, curve: 1, hardness: 0, line: 0, stagger: 0 },
       palette: presetByName('Neon'),
       glow: 0.85,
+      repeat: NO_REPEAT,
     },
   },
   {
@@ -76,6 +80,23 @@ export const FIELD_PRESETS: FieldPreset[] = [
       rings: { spacing: 0.035, curve: 1, hardness: 1, line: 0, stagger: 0 },
       palette: presetByName('Rohrpost'),
       glow: 0,
+      repeat: NO_REPEAT,
+    },
+  },
+  {
+    name: 'Stapel',
+    note: 'Referenzbild 3: eine Ellipse vielfach versetzt, Farbe wandert ueber den Stapel',
+    graph: {
+      shapes: [
+        { kind: 'superellipse', center: [0, 0.55], size: [0.34, 0.12], exponent: 2, rotation: 0 },
+      ],
+      combineMode: 'union',
+      smoothness: 0,
+      mirrorAxis: 'none',
+      rings: { spacing: 0.5, curve: 1, hardness: 1, line: 0, stagger: 0 },
+      palette: presetByName('Stapel'),
+      glow: 0,
+      repeat: { count: 16, offset: [0, -0.075], scale: 0.995, rotation: 0 },
     },
   },
 ];

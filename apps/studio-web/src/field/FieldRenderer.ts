@@ -13,6 +13,7 @@ import {
   packShapes,
   COMBINE_INDEX,
   MIRROR_INDEX,
+  copyCount,
   type FieldGraph,
 } from '@rotoscope/field-core';
 
@@ -134,6 +135,13 @@ export class FieldRenderer {
     gl.uniform1f(this.location('uLine'), graph.rings.line);
     gl.uniform1f(this.location('uStagger'), graph.rings.stagger);
     gl.uniform1f(this.location('uGlow'), graph.glow);
+
+    const repeat = graph.repeat;
+    gl.uniform1i(this.location('uRepeatCount'), copyCount(repeat));
+    gl.uniform2f(this.location('uRepeatOffset'), repeat.offset[0], repeat.offset[1]);
+    gl.uniform1f(this.location('uRepeatScale'), repeat.scale);
+    gl.uniform1f(this.location('uRepeatRotation'), repeat.rotation);
+    gl.uniform1i(this.location('uRampSource'), graph.palette.source === 'index' ? 1 : 0);
 
     const palette = graph.palette;
     const gradient = Array.isArray(palette.background[0]);
