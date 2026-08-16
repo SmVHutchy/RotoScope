@@ -15,7 +15,7 @@
     "engine": "uv run --project apps/engine-py engine",
     "rotoc": "node apps/cli/bin/rotoc.js",
     "doctor": "node apps/cli/bin/rotoc.js doctor",
-    "test": "node --test --experimental-strip-types packages/motif-lang/test/*.test.ts"
+    "test": "node --test --experimental-strip-types packages/*/test/*.test.ts"
   },
   "engines": {
     "node": ">=20"
