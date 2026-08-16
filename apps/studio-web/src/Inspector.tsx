@@ -6,7 +6,7 @@
  * versteckten Konstanten — was der Uebergang deklariert, steht im Panel.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Pane } from 'tweakpane';
 import type { ParamSpec } from './transitions';
 import type { ParamValue } from './gl/transition';
@@ -38,10 +38,29 @@ function fromPaneValue(spec: ParamSpec, value: unknown): ParamValue {
 
 export function Inspector({ specs, values, onChange }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
-  // Der Callback wird ueber ein Ref gefuehrt, damit das Pane nicht bei jedem
-  // Renderdurchlauf neu aufgebaut wird — sonst verliert man den Fokus beim Tippen.
+  const paneRef = useRef<Pane | null>(null);
+  const stateRef = useRef<Record<string, unknown>>({});
+
+  // Callback und Specs laufen ueber Refs, damit sie den Pane nicht neu aufbauen.
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const specsRef = useRef(specs);
+  specsRef.current = specs;
+
+  /**
+   * Der Pane wird nur neu gebaut, wenn sich die **Struktur** aendert — Namen und
+   * Typen der Parameter.
+   *
+   * Vorher hing der Aufbau an der Identitaet der Spec-Liste. In der
+   * Transition-Werkbank fiel das nicht auf, weil sie sich nur beim Uebergangswechsel
+   * aendert. Im Feldgenerator entsteht bei jedem Reglerzug eine neue Liste: der Pane
+   * wurde mitten in der Bewegung abgerissen und neu aufgebaut, und die Anzeige kippte
+   * auf NaN. Dieselbe Regel wie beim Shader — neu bauen nur bei Strukturaenderung.
+   */
+  const signature = useMemo(
+    () => specs.map((spec) => `${spec.name}:${spec.type}`).join('|'),
+    [specs],
+  );
 
   useEffect(() => {
     const host = hostRef.current;
@@ -49,9 +68,12 @@ export function Inspector({ specs, values, onChange }: Props) {
 
     const pane = new Pane({ container: host });
     const state: Record<string, unknown> = {};
+    paneRef.current = pane;
+    stateRef.current = state;
 
-    for (const spec of specs) {
-      state[spec.name] = toPaneValue(spec, values[spec.name] ?? spec.value);
+    const current = specsRef.current;
+    for (const spec of current) {
+      state[spec.name] = toPaneValue(spec, spec.value);
 
       const options: Record<string, unknown> = { label: spec.name };
       if (spec.type === 'float' || spec.type === 'int') {
@@ -64,15 +86,26 @@ export function Inspector({ specs, values, onChange }: Props) {
         .on('change', (event) => onChangeRef.current(spec.name, fromPaneValue(spec, event.value)));
     }
 
-    if (specs.length === 0) {
+    if (current.length === 0) {
       pane.addBlade({ view: 'text', label: 'Parameter', value: 'keine', parse: (v: string) => v });
     }
 
-    return () => pane.dispose();
-    // Absichtlich nur an den Spezifikationen haengen: `values` aendert sich bei jedem
-    // Reglerzug, und ein Neuaufbau des Panes mitten in der Bewegung waere fatal.
+    return () => {
+      pane.dispose();
+      paneRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [specs]);
+  }, [signature]);
+
+  // Werte nachziehen, ohne den Pane anzufassen — etwa wenn ein Preset geladen wird.
+  useEffect(() => {
+    const pane = paneRef.current;
+    if (!pane) return;
+    for (const spec of specs) {
+      stateRef.current[spec.name] = toPaneValue(spec, values[spec.name] ?? spec.value);
+    }
+    pane.refresh();
+  }, [values, specs]);
 
   return <div className="inspector__pane" ref={hostRef} />;
 }

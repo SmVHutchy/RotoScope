@@ -12,69 +12,7 @@ import { byName, defaultsOf, specsOf, transitions } from './transitions';
 
 type Slot = 'a' | 'b';
 
-type EngineState =
-  | { status: 'pruefe' }
-  | { status: 'aus'; reason: string }
-  | { status: 'an'; version: string; backend: string | null };
-
-
-function useEngine(): EngineState {
-  const [state, setState] = useState<EngineState>({ status: 'pruefe' });
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const check = async () => {
-      try {
-        const health = await fetch('/api/health', { signal: AbortSignal.timeout(2000) });
-        if (!health.ok) throw new Error(`HTTP ${health.status}`);
-        const { version } = await health.json();
-
-        let backend: string | null = null;
-        try {
-          const device = await fetch('/api/device', { signal: AbortSignal.timeout(20000) });
-          if (device.ok) backend = (await device.json()).preferred ?? null;
-        } catch {
-          /* Engine lebt, Backend unbekannt */
-        }
-
-        if (!cancelled) setState({ status: 'an', version, backend });
-      } catch (err) {
-        if (!cancelled) {
-          setState({ status: 'aus', reason: err instanceof Error ? err.message : String(err) });
-        }
-      }
-    };
-
-    void check();
-    const timer = setInterval(check, 8000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, []);
-
-  return state;
-}
-
-function EngineBadge({ state }: { state: EngineState }) {
-  const label =
-    state.status === 'pruefe'
-      ? 'Engine wird gesucht ...'
-      : state.status === 'an'
-        ? `Engine v${state.version} / ${state.backend ?? 'kein GPU-Backend'}`
-        : 'Engine offline';
-
-  return (
-    <span className={`badge badge--${state.status}`} title={state.status === 'aus' ? state.reason : undefined}>
-      <span className="badge__dot" />
-      {label}
-    </span>
-  );
-}
-
 export function App() {
-  const engine = useEngine();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<TransitionRenderer | null>(null);
   const clipsRef = useRef<{ a: LoadedClip | null; b: LoadedClip | null }>({ a: null, b: null });
@@ -336,12 +274,7 @@ export function App() {
   );
 
   return (
-    <main className="app app--split">
-      <header className="app__head">
-        <h1>RotoScope Studio</h1>
-        <EngineBadge state={engine} />
-      </header>
-
+    <>
       <section className="viewer">
         <div
           className={info ? 'stack' : 'stack is-empty'}
@@ -475,6 +408,6 @@ export function App() {
           </span>
         </footer>
       )}
-    </main>
+    </>
   );
 }

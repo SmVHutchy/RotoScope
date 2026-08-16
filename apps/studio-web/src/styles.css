@@ -294,10 +294,23 @@ body {
 .app__head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  gap: 1.4rem;
   padding: 0.9rem 1.1rem;
   background: var(--panel);
+}
+
+.app__head .badge {
+  margin-left: auto;
+}
+
+.modes {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.button--active {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /* Wortmarke: gross genug, dass die geometrischen Formen wirken, mit leichter

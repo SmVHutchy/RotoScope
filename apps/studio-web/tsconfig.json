@@ -17,5 +17,5 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["src", "../../packages/motif-lang/src", "../../packages/grade-core/src"]
+  "include": ["src", "../../packages/motif-lang/src", "../../packages/grade-core/src", "../../packages/field-core/src"]
 }
