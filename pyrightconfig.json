@@ -1,0 +1,7 @@
+{
+  "venvPath": "apps/engine-py",
+  "venv": ".venv",
+  "include": ["apps/engine-py/src", "scripts"],
+  "pythonVersion": "3.12",
+  "reportMissingImports": "warning"
+}

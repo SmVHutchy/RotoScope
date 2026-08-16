@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
+from .api_roto import router as roto_router
 from .backends import probe
 
 log = logging.getLogger("rotoscope")
@@ -46,6 +47,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+app.include_router(roto_router)
 
 
 @app.get("/health")
