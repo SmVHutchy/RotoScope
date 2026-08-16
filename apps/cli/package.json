@@ -1,0 +1,16 @@
+{
+  "name": "@rotoscope/cli",
+  "version": "0.0.1",
+  "private": true,
+  "description": "rotoc — headless CLI. Zero dependencies, damit es vor jeder Installation laeuft.",
+  "type": "module",
+  "bin": {
+    "rotoc": "bin/rotoc.js"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}

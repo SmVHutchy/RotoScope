@@ -1,0 +1,22 @@
+{
+  "name": "rotoscope",
+  "private": true,
+  "version": "0.0.1",
+  "description": "RotoScope Studio — KI-Rotoscoping, komponierbare Transitions, Look-Transfer. Siehe PROJECT_PROMPT.md",
+  "type": "module",
+  "workspaces": [
+    "apps/studio-web",
+    "apps/cli",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace apps/studio-web",
+    "build": "npm run build --workspace apps/studio-web",
+    "engine": "uv run --project apps/engine-py engine",
+    "rotoc": "node apps/cli/bin/rotoc.js",
+    "doctor": "node apps/cli/bin/rotoc.js doctor"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

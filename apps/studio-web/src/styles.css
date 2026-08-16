@@ -1,0 +1,128 @@
+:root {
+  color-scheme: dark;
+  --bg: #101013;
+  --panel: #17171c;
+  --line: #2a2a33;
+  --fg: #e6e6ea;
+  --muted: #8b8b97;
+  --ok: #4ade80;
+  --off: #f87171;
+  --wait: #fbbf24;
+  font-family: ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  gap: 1px;
+  background: var(--line);
+}
+
+.app__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--panel);
+}
+
+.app__head h1 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.badge__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.badge--an .badge__dot {
+  background: var(--ok);
+}
+.badge--aus .badge__dot {
+  background: var(--off);
+}
+.badge--pruefe .badge__dot {
+  background: var(--wait);
+}
+
+.viewer {
+  position: relative;
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.viewer__canvas {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.viewer__canvas.is-empty {
+  display: none;
+}
+
+.viewer__hint {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.viewer__hint--error {
+  color: var(--off);
+  max-width: 40ch;
+  text-align: center;
+}
+
+.viewer__hint p {
+  margin: 0;
+}
+
+.meta {
+  display: flex;
+  gap: 1.25rem;
+  padding: 0.6rem 1rem;
+  background: var(--panel);
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.meta__note {
+  margin-left: auto;
+}
