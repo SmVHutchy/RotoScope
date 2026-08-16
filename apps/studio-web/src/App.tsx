@@ -1,20 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ClipSlot } from './ClipSlot';
 import { Inspector } from './Inspector';
 import { MotifPanel } from './MotifPanel';
 import { EASE_NAMES, easeByName } from './ease';
 import { download, exportTransition } from './export';
 import { TransitionRenderer, type ParamValue } from './gl/transition';
-import { loadClip, type ClipInfo, type Frame } from './media';
+import { loadClip, type ClipInfo, type LoadedClip } from './media';
 import { byName, defaultsOf, specsOf, transitions } from './transitions';
+
+type Slot = 'a' | 'b';
 
 type EngineState =
   | { status: 'pruefe' }
   | { status: 'aus'; reason: string }
   | { status: 'an'; version: string; backend: string | null };
 
-/** Wo die beiden Frames im Clip liegen, zwischen denen der Übergang läuft. */
-const FROM_AT = 0;
-const TO_FRACTION = 0.6;
 
 function useEngine(): EngineState {
   const [state, setState] = useState<EngineState>({ status: 'pruefe' });
@@ -75,11 +75,16 @@ export function App() {
   const engine = useEngine();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<TransitionRenderer | null>(null);
-  const framesRef = useRef<{ from: Frame; to: Frame } | null>(null);
+  const clipsRef = useRef<{ a: LoadedClip | null; b: LoadedClip | null }>({ a: null, b: null });
 
-  const [info, setInfo] = useState<ClipInfo | null>(null);
+  // Beide Seiten getrennt: A liefert den Ausstiegsframe, B den Einstiegsframe.
+  const [infos, setInfos] = useState<{ a: ClipInfo | null; b: ClipInfo | null }>({ a: null, b: null });
+  const [times, setTimes] = useState<{ a: number; b: number }>({ a: 0, b: 0 });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  /** Sobald A vorhanden ist, bestimmt es Ausgabeformat und Vorschau. */
+  const info = infos.a ?? infos.b;
 
   const [name, setName] = useState('crosswarp');
   const [params, setParams] = useState<Record<string, ParamValue>>(() => defaultsOf(byName('crosswarp')));
@@ -126,44 +131,71 @@ export function App() {
   /** Ein Renderdurchgang. Getrennt gehalten, damit ihn Regler und Animation teilen. */
   const draw = useCallback((p: number, values: Record<string, ParamValue>) => {
     const renderer = rendererRef.current;
-    if (!renderer || !framesRef.current) return;
+    if (!renderer) return;
     const started = performance.now();
     renderer.render(p, values);
     setFrameMs(Math.round((performance.now() - started) * 100) / 100);
   }, []);
 
-  const open = useCallback(
-    async (source: Blob) => {
+  /**
+   * Beide Frames holen und in den Renderer geben.
+   *
+   * Fehlt eine Seite, springt die andere ein — so ist schon nach dem ersten Clip
+   * etwas zu sehen, statt eine leere Fläche bis zum zweiten Ladevorgang.
+   */
+  const refreshFrames = useCallback(async () => {
+    const { a, b } = clipsRef.current;
+    const source = a ?? b;
+    if (!source) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    if (!rendererRef.current) rendererRef.current = new TransitionRenderer(canvas);
+
+    const [frameA, frameB] = await Promise.all([
+      (a ?? source).frameAt(times.a),
+      (b ?? source).frameAt(times.b),
+    ]);
+
+    const out = (a ?? source).info;
+    rendererRef.current.setImages(
+      frameA.canvas,
+      frameB.canvas,
+      out.width,
+      out.height,
+      (a ?? source).info.width / (a ?? source).info.height,
+      (b ?? source).info.width / (b ?? source).info.height,
+    );
+    rendererRef.current.use(transition);
+    draw(progress, params);
+  }, [draw, params, progress, times.a, times.b, transition]);
+
+  /** Clip in eine Seite laden. A springt ans Ende, B an den Anfang — der Normalfall im Schnitt. */
+  const loadSlot = useCallback(
+    async (slot: Slot, source: Blob) => {
       setBusy(true);
       setError(null);
-      setInfo(null);
-
       try {
         const clip = await loadClip(source);
-        // Zwei Frames aus demselben Clip: Anfang und ein Stück später. Damit hat
-        // der Übergang echtes Material statt Testbilder (UC-B1).
-        const [from, to] = await Promise.all([
-          clip.frameAt(FROM_AT),
-          clip.frameAt(clip.info.duration * TO_FRACTION),
-        ]);
-        framesRef.current = { from, to };
-
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        if (!rendererRef.current) rendererRef.current = new TransitionRenderer(canvas);
-
-        rendererRef.current.setImages(from.canvas, to.canvas, clip.info.width, clip.info.height);
-        rendererRef.current.use(transition);
-        setInfo(clip.info);
-        draw(progress, params);
+        clipsRef.current = { ...clipsRef.current, [slot]: clip };
+        setInfos((prev) => ({ ...prev, [slot]: clip.info }));
+        setTimes((prev) => ({
+          ...prev,
+          [slot]: slot === 'a' ? Math.max(0, clip.info.duration - 0.04) : 0,
+        }));
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
         setBusy(false);
       }
     },
-    [draw, params, progress, transition],
+    [],
   );
+
+  // Frames neu holen, sobald sich eine Zeitposition oder der Übergang ändert.
+  useEffect(() => {
+    void refreshFrames();
+  }, [refreshFrames]);
 
   useEffect(() => {
     const url = new URLSearchParams(window.location.search).get('clip');
@@ -172,12 +204,14 @@ export function App() {
       try {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`Clip nicht ladbar: HTTP ${res.status}`);
-        await open(await res.blob());
+        const blob = await res.blob();
+        // Zum Ausprobieren: derselbe Clip in beide Seiten, A ans Ende, B an den Anfang.
+        await loadSlot('a', blob);
+        await loadSlot('b', blob);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       }
     })();
-    // Nur beim Start: der Clip-Parameter ändert sich nicht während der Sitzung.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -243,15 +277,7 @@ export function App() {
         <EngineBadge state={engine} />
       </header>
 
-      <section
-        className="viewer"
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          const file = e.dataTransfer.files[0];
-          if (file) void open(file);
-        }}
-      >
+      <section className="viewer">
         <div
           className={info ? 'stack' : 'stack is-empty'}
           style={info ? { aspectRatio: `${info.width} / ${info.height}` } : undefined}
@@ -259,19 +285,25 @@ export function App() {
           <canvas ref={canvasRef} className="stack__layer" />
         </div>
 
-        {!info && !busy && (
-          <div className="viewer__hint">
-            <p>Video hierher ziehen oder auswählen.</p>
-            <input
-              type="file"
-              accept="video/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void open(file);
-              }}
-            />
-          </div>
-        )}
+        <div className="slots">
+          <ClipSlot
+            label="A — raus"
+            hint="Clip hierher ziehen"
+            info={infos.a}
+            time={times.a}
+            onFile={(file) => void loadSlot('a', file)}
+            onTime={(seconds) => setTimes((prev) => ({ ...prev, a: seconds }))}
+          />
+          <ClipSlot
+            label="B — rein"
+            hint="Clip hierher ziehen"
+            info={infos.b}
+            time={times.b}
+            onFile={(file) => void loadSlot('b', file)}
+            onTime={(seconds) => setTimes((prev) => ({ ...prev, b: seconds }))}
+          />
+        </div>
+
         {busy && <div className="viewer__hint">dekodiere …</div>}
         {error && <div className="viewer__hint viewer__hint--error">{error}</div>}
       </section>
@@ -376,7 +408,7 @@ export function App() {
           <span>{info.duration.toFixed(2)} s</span>
           <span>{info.codec ?? 'Codec unbekannt'}</span>
           <span className="meta__note">
-            Frame 0 → Frame bei {(info.duration * TO_FRACTION).toFixed(2)} s
+            A {times.a.toFixed(2)} s → B {times.b.toFixed(2)} s
           </span>
         </footer>
       )}

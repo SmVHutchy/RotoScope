@@ -119,7 +119,22 @@ export class TransitionRenderer {
     gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
   }
 
-  setImages(from: TexImageSource, to: TexImageSource, width: number, height: number): void {
+  /**
+   * Beide Seiten des Uebergangs setzen.
+   *
+   * Die Seitenverhaeltnisse werden je Bild uebergeben, nicht vom Ausgabeformat
+   * abgeleitet: A und B duerfen aus verschiedenen Clips mit verschiedenen Formaten
+   * kommen. Der gl-transitions-Rahmen korrigiert das ueber `_fromR` und `_toR` --
+   * setzt man dort beide gleich, wird ein hochkantes B in ein 16:9-Ziel gequetscht.
+   */
+  setImages(
+    from: TexImageSource,
+    to: TexImageSource,
+    width: number,
+    height: number,
+    fromRatio = width / height,
+    toRatio = width / height,
+  ): void {
     const gl = this.gl;
     this.canvas.width = width;
     this.canvas.height = height;
@@ -132,8 +147,8 @@ export class TransitionRenderer {
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
     }
-    this.fromRatio = width / height;
-    this.toRatio = width / height;
+    this.fromRatio = fromRatio;
+    this.toRatio = toRatio;
   }
 
   render(progress: number, params: Record<string, ParamValue>): void {
