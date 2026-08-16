@@ -26,5 +26,6 @@ dem Datum der Prüfung.
 | CoTracker3 | Punkt-Stabilität (UC-A5) | M2 | offen |
 | ProPainter | Object Removal (UC-A7) | M3 | offen — S-Lab, non-commercial prüfen |
 | DiffuEraser | Object Removal, Qualitätsstufe | M3 | offen |
-| mediabunny | Media-I/O im Browser | M0 | **offen — bereits als Dependency eingetragen, Lizenz nachziehen** |
+| mediabunny | Media-I/O im Browser | M0 | **geklärt: MPL-2.0, kommerziell nutzbar** → [mediabunny.md](mediabunny.md) |
+| onnxruntime-directml | Inferenz-Pfad B | M0 | MIT (Microsoft) — bestätigen und Datei anlegen |
 | gl-transitions | Transition-Bibliothek | M3 | MIT — unkritisch, trotzdem dokumentieren |

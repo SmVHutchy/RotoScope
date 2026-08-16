@@ -1,7 +1,7 @@
 # ADR 001 — Inferenz-Backend auf AMD/Windows
 
-**Status:** offen — wartet auf den M0-Spike
-**Datum:** —
+**Status:** teilweise gemessen — Pfad B bestätigt, Pfad A steht aus
+**Datum:** 2026-08-16 (erste Messung)
 **Betrifft:** M1 (Roto Core), Modellauswahl ab M2, UC-E7
 
 ## Kontext
@@ -23,20 +23,26 @@ Drei Pfade stehen zur Wahl (Details und Installationsbefehle: `scripts/spike/REA
 Ausgeführt mit `python scripts/spike/spike_inference.py …`.
 **Diese Tabelle ist auszufüllen, bevor M1 geplant wird.**
 
-| Pfad | Installation lief durch | GPU sichtbar | synthetic proxy-960 | synthetic full-1920 | SAM 2 Encoder proxy-960 | VRAM Spitze |
+| Pfad | Installation lief durch | GPU-Provider sichtbar | synthetic proxy-960 | synthetic full-1920 | SAM 2 Encoder proxy-960 | VRAM Spitze |
 |---|---|---|---|---|---|---|
-| A — ROCm nativ | ☐ | ☐ | — ms | — ms | — ms | — GB |
-| B — ONNX/DirectML | ☐ | ☐ | — ms | — ms | — ms | — GB |
-| C — WSL2 | ☐ | ☐ | — ms | — ms | — ms | — GB |
+| A — ROCm nativ | ☐ offen | ☐ | — ms | — ms | — ms | — GB |
+| B — ONNX/DirectML | ☑ ja | ☑ `DmlExecutionProvider` | — ms | — ms | — ms | — GB |
+| C — WSL2 | ☐ nicht nötig, solange A oder B trägt | ☐ | — ms | — ms | — ms | — GB |
 
 Umgebung zum Zeitpunkt der Messung:
 
 | | |
 |---|---|
-| Adrenalin-Treiber | — |
-| Python | — |
-| torch / onnxruntime | — |
-| ROCm/HIP | — |
+| GPU | AMD Radeon RX 7600 XT, Treiber 32.0.31019.2002 (WDDM) — **Adrenalin-Version noch prüfen, ROCm 7.2.1 verlangt 26.2.2+** |
+| OS | Windows 11 (AMD64) |
+| Python | 3.12.13 (uv-verwaltet; System-Python 3.14 wird nicht benutzt) |
+| onnxruntime | 1.24.4 (`onnxruntime-directml`), Provider: `DmlExecutionProvider`, `CPUExecutionProvider` |
+| torch / ROCm | nicht installiert |
+
+**Was am 2026-08-16 tatsächlich belegt ist:** Pfad B installiert sauber in die 3.12-Umgebung und
+meldet den DirectML-Provider — der DX12-Weg auf dieser Karte steht also grundsätzlich offen.
+**Was noch nicht belegt ist:** dass darüber auch echte Kernel in brauchbarer Zeit laufen. Dafür
+fehlt ein Modell; die Provider-Meldung allein ist kein Leistungsnachweis.
 
 ## Entscheidung
 

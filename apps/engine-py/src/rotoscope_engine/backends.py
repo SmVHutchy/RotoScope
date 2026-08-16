@@ -44,7 +44,7 @@ def _probe_torch() -> list[BackendInfo]:
             )
         ]
 
-    import torch  # noqa: PLC0415  (bewusst lazy)
+    import torch  # noqa: PLC0415  (bewusst lazy)  # type: ignore[import-not-found]
 
     version = getattr(torch, "__version__", "?")
     hip = getattr(torch.version, "hip", None)
@@ -96,9 +96,25 @@ def _probe_onnxruntime() -> list[BackendInfo]:
     ]
 
 
+def _safe(probe_fn, label: str) -> list[BackendInfo]:
+    """Ein kaputtes Backend darf den Bericht nicht mitreissen.
+
+    Halb installierte Stacks sind hier der Normalfall, nicht die Ausnahme: onnxruntime
+    wirft z. B. ImportError, wenn numpy erst nach dem Prozessstart dazukam. Das ist
+    eine Information ueber die Umgebung -- und gehoert in die Antwort, nicht in einen 500er.
+    """
+    try:
+        return probe_fn()
+    except Exception as err:  # noqa: BLE001 -- genau das ist hier gewollt
+        return [BackendInfo(label, False, f"Probe fehlgeschlagen: {type(err).__name__}: {err}")]
+
+
 def probe() -> dict[str, Any]:
     """Vollstaendiger Umgebungsbericht. Wird von /device und vom Spike genutzt."""
-    backends = [*_probe_torch(), *_probe_onnxruntime()]
+    backends = [
+        *_safe(_probe_torch, "torch"),
+        *_safe(_probe_onnxruntime, "onnx-directml"),
+    ]
     preferred = next((b.name for b in backends if b.available and b.name != "torch-cpu"), None)
 
     return {

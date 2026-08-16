@@ -69,33 +69,49 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const open = useCallback(async (file: File) => {
+  const open = useCallback(async (source: Blob) => {
     setBusy(true);
     setError(null);
     setInfo(null);
 
     try {
       const started = performance.now();
-      const clip = await loadClip(file);
+      const clip = await loadClip(source);
       const frame = await clip.frameAt(0);
       const decodeMs = Math.round(performance.now() - started);
 
       const canvas = canvasRef.current;
       if (!canvas) return;
-      canvas.width = frame.width;
-      canvas.height = frame.height;
+      canvas.width = frame.canvas.width;
+      canvas.height = frame.canvas.height;
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('2D-Kontext nicht verfügbar.');
-      ctx.drawImage(frame, 0, 0);
+      ctx.drawImage(frame.canvas, 0, 0);
 
       setInfo(clip.info);
-      console.info(`[M0] Frame 0 dekodiert und gezeichnet in ${decodeMs} ms`);
+      console.info(`[M0] Frame bei t=${frame.timestamp}s dekodiert und gezeichnet in ${decodeMs} ms`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
   }, []);
+
+  // ?clip=<url> laedt direkt beim Start. Gedacht fuer Verifikation und spaeter fuer
+  // die Uebergabe aus CLI/Tauri -- spart in M0 das manuelle Klicken bei jedem Test.
+  useEffect(() => {
+    const url = new URLSearchParams(window.location.search).get('clip');
+    if (!url) return;
+    void (async () => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Clip nicht ladbar: HTTP ${res.status}`);
+        await open(await res.blob());
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    })();
+  }, [open]);
 
   return (
     <main className="app">

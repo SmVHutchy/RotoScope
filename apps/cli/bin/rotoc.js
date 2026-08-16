@@ -53,7 +53,11 @@ async function doctor() {
     lines.push(`engine      ok, v${health.data.version} auf ${ENGINE_URL}`);
 
     const device = await ask('/device');
-    if (device.ok) {
+    if (!device.ok) {
+      lines.push(`device      /device antwortet nicht (${device.error})`);
+      lines.push(`            Engine-Log pruefen — ein Backend-Probe ist abgestuerzt.`);
+      problems++;
+    } else {
       const { platform, backends, preferred } = device.data;
       lines.push(`python      ${platform.python} (${platform.system} ${platform.release})`);
       for (const b of backends) {

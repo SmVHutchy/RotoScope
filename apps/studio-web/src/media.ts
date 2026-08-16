@@ -15,22 +15,17 @@ export type ClipInfo = {
   codec: string | null;
 };
 
-export type LoadedClip = {
-  info: ClipInfo;
-  /** Frame an einer Zeitposition (Sekunden) als Canvas. */
-  frameAt: (seconds: number) => Promise<HTMLCanvasElement>;
+export type Frame = {
+  canvas: HTMLCanvasElement | OffscreenCanvas;
+  /** Tatsaechlicher Zeitstempel des gelieferten Frames, in Sekunden. */
+  timestamp: number;
 };
 
-/**
- * `getCanvasAt` liefert je nach mediabunny-Version das Canvas direkt oder ein
- * WrappedCanvas mit Metadaten. Beides akzeptieren, statt sich an eine Form zu binden.
- */
-function unwrapCanvas(result: unknown): HTMLCanvasElement {
-  if (result && typeof result === 'object' && 'canvas' in result) {
-    return (result as { canvas: HTMLCanvasElement }).canvas;
-  }
-  return result as HTMLCanvasElement;
-}
+export type LoadedClip = {
+  info: ClipInfo;
+  /** Frame an einer Zeitposition (Sekunden). Liefert den letzten Frame <= seconds. */
+  frameAt: (seconds: number) => Promise<Frame>;
+};
 
 export async function loadClip(file: File | Blob): Promise<LoadedClip> {
   const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(file) });
@@ -38,24 +33,21 @@ export async function loadClip(file: File | Blob): Promise<LoadedClip> {
   const track = await input.getPrimaryVideoTrack();
   if (!track) throw new Error('Die Datei enthaelt keine Videospur.');
 
-  const [duration, codec] = await Promise.all([
+  const [duration, width, height, codec] = await Promise.all([
     input.computeDuration(),
+    track.getDisplayWidth(),
+    track.getDisplayHeight(),
     track.getCodecParameterString().catch(() => null),
   ]);
 
   const sink = new CanvasSink(track);
 
   return {
-    info: {
-      duration,
-      width: track.displayWidth ?? track.codedWidth,
-      height: track.displayHeight ?? track.codedHeight,
-      codec,
-    },
+    info: { duration, width, height, codec },
     frameAt: async (seconds: number) => {
-      const result = await sink.getCanvasAt(seconds);
-      if (!result) throw new Error(`Kein Frame bei ${seconds}s.`);
-      return unwrapCanvas(result);
+      const wrapped = await sink.getCanvas(seconds);
+      if (!wrapped) throw new Error(`Kein Frame bei ${seconds}s.`);
+      return { canvas: wrapped.canvas, timestamp: wrapped.timestamp };
     },
   };
 }

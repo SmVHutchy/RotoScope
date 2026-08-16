@@ -17,6 +17,8 @@ models/
 
 out/
 cache/
+apps/studio-web/public/dev-*
+scripts/spike/results-*.json
 .frames/
 *.log
 

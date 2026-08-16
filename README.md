@@ -6,7 +6,15 @@ Lokal, offline, jeder Parameter offen.
 **Das verbindliche Briefing ist [PROJECT_PROMPT.md](PROJECT_PROMPT.md).** Architektur, Use-Cases,
 Bausteine, Milestones und die Sprachdefinition stehen dort — nicht hier.
 
-Status: **M0 — Skelett + Hardware-Spike.**
+Status: **M0 — Skelett steht und läuft. Hardware-Spike zur Hälfte gemessen.**
+
+| M0-Punkt | Stand |
+|---|---|
+| Monorepo, Engine, CLI | ✅ läuft |
+| Web-App zeigt Frame 0 (mediabunny + WebCodecs) | ✅ verifiziert, 1280×720 in ~31 ms dekodiert |
+| Inferenz-Pfad B (ONNX Runtime + DirectML) | ✅ installiert, `DmlExecutionProvider` gemeldet |
+| Inferenz-Pfad A (PyTorch + ROCm) | ⬜ offen — mehrere GB Download, braucht Treiber-Check |
+| Latenz-Messung mit echtem Modell | ⬜ offen — hängt an Pfad A |
 
 ---
 
