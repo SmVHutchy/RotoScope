@@ -9,7 +9,11 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+import io
+from pathlib import Path
+
+import numpy as np
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
@@ -55,6 +59,51 @@ app.include_router(roto_router)
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "rotoscope-engine", "version": __version__}
+
+
+# Repo-Wurzel: .../apps/engine-py/src/rotoscope_engine/app.py
+CHECKPOINTS = Path(__file__).resolve().parents[4] / "checkpoints"
+DEPTH_MODEL = CHECKPOINTS / "depth-anything-v2-small.onnx"
+
+
+@app.post("/depth")
+async def depth(request: Request) -> Response:
+    """Tiefenkarte zu einem Bild. Roher Bildkoerper rein, Graustufen-PNG raus.
+
+    Nur die Small-Variante, Apache-2.0 (docs/licenses/depth-anything-v2.md).
+    Gemessen auf einer RX 7600 XT ueber DirectML: rund 84 ms bei 1280x720.
+    """
+    from PIL import Image
+
+    from .depth import get_estimator
+
+    data = await request.body()
+    if not data:
+        raise HTTPException(400, "Leerer Bildkoerper.")
+
+    try:
+        estimator = get_estimator(DEPTH_MODEL)
+    except FileNotFoundError as err:
+        raise HTTPException(503, str(err)) from err
+
+    try:
+        image = np.asarray(Image.open(io.BytesIO(data)).convert("RGB"))
+    except Exception as err:  # noqa: BLE001
+        raise HTTPException(400, f"Bild nicht lesbar: {err}") from err
+
+    depth_map, elapsed = estimator.estimate(image)
+
+    buffer = io.BytesIO()
+    Image.fromarray(depth_map, mode="L").save(buffer, format="PNG")
+    return Response(
+        content=buffer.getvalue(),
+        media_type="image/png",
+        headers={
+            "X-Depth-Ms": str(elapsed),
+            "X-Provider": estimator.provider,
+            "Access-Control-Expose-Headers": "X-Depth-Ms, X-Provider",
+        },
+    )
 
 
 @app.get("/device")

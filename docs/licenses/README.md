@@ -28,4 +28,5 @@ dem Datum der Prüfung.
 | DiffuEraser | Object Removal, Qualitätsstufe | M3 | offen |
 | mediabunny | Media-I/O im Browser | M0 | **geklärt: MPL-2.0, kommerziell nutzbar** → [mediabunny.md](mediabunny.md) |
 | onnxruntime-directml | Inferenz-Pfad B | M0 | MIT (Microsoft) — bestätigen und Datei anlegen |
+| depth-anything-v2 (Small) | Tiefenkarte fuer Parallax (UC-B10) | — | **geklaert: Apache-2.0 nur fuer Small**; Large ist CC-BY-NC-4.0 und gesperrt |
 | gl-transitions | Transition-Bibliothek | M3 | MIT — unkritisch, trotzdem dokumentieren |
