@@ -90,6 +90,36 @@ uv venv --python 3.12 .venv-dml
 
 Erwartung: `DmlExecutionProvider` steht in der Liste.
 
+## Pfad D — macOS (Apple Silicon)
+
+Auf dem Mac gibt es weder ROCm noch DirectML. Dieselben zwei Rollen übernehmen dort
+CoreML und MPS, und der Code bleibt unverändert.
+
+Tiefenkarten brauchen nur ONNX Runtime — das ist der leichteste Weg und reicht für
+alles, was heute läuft:
+
+```bash
+uv sync --project apps/engine-py --extra coreml
+npm run models
+npm run engine:mac
+```
+
+Für Segmentierung zusätzlich Torch mit MPS:
+
+```bash
+uv sync --project apps/engine-py --extra coreml --extra mps
+```
+
+Prüfen, worauf es tatsächlich läuft:
+
+```bash
+uv run --project apps/engine-py python scripts/spike/spike_inference.py env
+```
+
+Der Spike erkennt MPS eigenständig — eine reine CUDA-Prüfung hätte Apple Silicon als
+„keine GPU" abgetan. **Die Zahlen in ADR 001 und 002 gelten dort nicht**; wer auf dem
+Mac plant, misst mit `synthetic` und `sam2` neu.
+
 ## Pfad C — WSL2 / Linux (Rückfallebene)
 
 Nur anfassen, wenn A und B beide nicht tragen. ROCm unter WSL2 ist selbst nicht für jede Karte

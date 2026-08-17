@@ -96,6 +96,28 @@ def cmd_env(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _device(torch):
+    """Das schnellste verfuegbare Geraet.
+
+    `torch.cuda` deckt auf dieser Maschine AMD/ROCm mit ab (ROCm meldet sich ueber
+    die CUDA-API). Auf einem Mac gibt es das nicht -- dort heisst das Backend `mps`
+    und wuerde bei einer reinen CUDA-Pruefung als "keine GPU" durchfallen.
+    """
+    if torch.cuda.is_available():
+        return torch.device("cuda"), torch.cuda.get_device_name(0)
+    mps = getattr(getattr(torch, "backends", None), "mps", None)
+    if mps is not None and mps.is_available():
+        return torch.device("mps"), "Apple Silicon (MPS)"
+    return None, None
+
+
+def _synchronize(torch, device) -> None:
+    if device.type == "cuda":
+        torch.cuda.synchronize()
+    elif device.type == "mps":
+        torch.mps.synchronize()
+
+
 def _bench(fn, warmup: int = WARMUP, runs: int = RUNS) -> dict[str, float]:
     """Median statt Mittelwert: einzelne Ausreisser sollen das Bild nicht kippen."""
     for _ in range(warmup):
@@ -149,13 +171,13 @@ def cmd_synthetic(args: argparse.Namespace) -> int:
         print("torch fehlt. Erst Pfad A oder B aus scripts/spike/README.md.")
         return 1
 
-    if not torch.cuda.is_available():
+    device, name = _device(torch)
+    if device is None:
         print("Keine GPU sichtbar — Messung auf CPU waere ohne Aussage. Abbruch.")
         return 1
 
-    device = torch.device("cuda")
     dtype = torch.float16 if not args.fp32 else torch.float32
-    print(f"Device: {torch.cuda.get_device_name(0)}   dtype: {dtype}")
+    print(f"Device: {name}   dtype: {dtype}")
     print(f"Warmup {WARMUP}, Messungen {RUNS}\n")
 
     stack = nn.Sequential(
@@ -187,7 +209,7 @@ def cmd_synthetic(args: argparse.Namespace) -> int:
 
             def run_conv():
                 stack(x)
-                torch.cuda.synchronize()
+                _synchronize(torch, device)
 
             stats = _bench(run_conv)
             results["conv"][label] = stats
@@ -201,7 +223,7 @@ def cmd_synthetic(args: argparse.Namespace) -> int:
 
             def run_vit():
                 vit(seq)
-                torch.cuda.synchronize()
+                _synchronize(torch, device)
 
             # Weniger Laeufe: bei hoher Tokenzahl dauert jeder Durchgang deutlich laenger.
             stats = _bench(run_vit, warmup=2, runs=6)
@@ -215,7 +237,7 @@ def cmd_synthetic(args: argparse.Namespace) -> int:
 
     _write(args, {
         "kind": "synthetic",
-        "device": torch.cuda.get_device_name(0),
+        "device": name,
         "torch": torch.__version__,
         "hip": getattr(torch.version, "hip", None),
         "dtype": str(dtype),
@@ -271,13 +293,13 @@ def cmd_sam2(args: argparse.Namespace) -> int:
         print("Achtung: NICHT Sammie-Roto-2 klonen (GPL-3.0) — nur das Modell selbst.")
         return 2
 
-    if not torch.cuda.is_available():
+    device, name = _device(torch)
+    if device is None:
         print("Keine GPU sichtbar. Abbruch.")
         return 1
 
     import numpy as np
 
-    device = torch.device("cuda")
     width, height = RESOLUTIONS["proxy-960"]
     image = np.random.randint(0, 255, (height, width, 3), dtype=np.uint8)
     point = np.array([[width // 2, height // 2]])
@@ -296,24 +318,25 @@ def cmd_sam2(args: argparse.Namespace) -> int:
             print(f"{name:<24} keine Config bekannt — mit --config angeben")
             continue
 
-        torch.cuda.reset_peak_memory_stats()
+        if device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats()
         model = build_sam2(config, str(checkpoint), device=device)
         predictor = SAM2ImagePredictor(model)
 
         def encode():
             predictor.set_image(image)
-            torch.cuda.synchronize()
+            _synchronize(torch, device)
 
         encode_stats = _bench(encode, warmup=2, runs=6)
 
         # Embedding liegt jetzt vor -- predict() misst nur noch den Decoder.
         def click():
             predictor.predict(point_coords=point, point_labels=label_arr, multimask_output=True)
-            torch.cuda.synchronize()
+            _synchronize(torch, device)
 
         click_stats = _bench(click, warmup=3, runs=10)
 
-        vram = torch.cuda.max_memory_allocated() / 1024**3
+        vram = torch.cuda.max_memory_allocated() / 1024**3 if device.type == "cuda" else 0.0
         total = encode_stats["median_ms"] + click_stats["median_ms"]
         results[name] = {
             "config": config,
@@ -325,7 +348,8 @@ def cmd_sam2(args: argparse.Namespace) -> int:
               f"{total:>7.1f} ms {vram:>7.2f} GB")
 
         del predictor, model
-        torch.cuda.empty_cache()
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
 
     budget = BUDGET_MS["proxy-960"]
     print(f"\nBudget fuer die Klick-Korrektur: {budget:.0f} ms (UC-E7).")
@@ -334,7 +358,7 @@ def cmd_sam2(args: argparse.Namespace) -> int:
 
     _write(args, {
         "kind": "sam2",
-        "device": torch.cuda.get_device_name(0),
+        "device": name,
         "input_resolution": f"{width}x{height}",
         "results": results,
     })

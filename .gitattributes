@@ -1,0 +1,10 @@
+# Zeilenenden festnageln: sonst meldet jeder Wechsel zwischen Windows und Mac
+# Aenderungen an Dateien, die niemand angefasst hat.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.mp4 binary
+*.ttf binary
+*.onnx binary
+*.pt binary

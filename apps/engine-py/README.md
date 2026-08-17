@@ -3,6 +3,13 @@
 Lokaler Inferenz-Dienst. Läuft offline, ohne Telemetrie (UC-E1).
 
 ```bash
+npm run engine:mac    # macOS: ONNX Runtime mit CoreML
+npm run engine:win    # Windows: PyTorch/ROCm und ONNX/DirectML
+```
+
+Ohne Neuinstallation der Abhängigkeiten:
+
+```bash
 uv run --project apps/engine-py engine          # startet auf 127.0.0.1:8787
 uv run --project apps/engine-py engine --reload # mit Auto-Reload
 ```
