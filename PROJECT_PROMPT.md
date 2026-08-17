@@ -13,7 +13,6 @@
 | Quelle | Status |
 |---|---|
 | [Zarxrax/Sammie-Roto-2](https://github.com/Zarxrax/Sammie-Roto-2) | Geprüft. Python 3.12 + UV, Desktop-App, v2.3.3 (April 2026). Modelle: SAM2, EfficientTAM (Segmentierung), MatAnyone / MatAnyone2 / VideoMaMa (Matting), MiniMax-Remover (Object Removal). Lizenz **GPL-3.0**. Live-Preview, In/Out-Marker, Half-Precision, Punkt-Korrektur ohne Tracking-Verlust. |
-| YouTube-Video `lIqDBSxmY9E` | **Nicht abrufbar** (Fetcher bekommt nur den YouTube-Footer, Suche nach der ID findet nichts). Die Inspiration ist hier aus deiner Beschreibung rekonstruiert: moderne, *gebaute* Transitions statt Preset-Klicken. **→ Wenn das Video etwas anderes zeigt: diesen Abschnitt korrigieren, der Rest bleibt gültig.** |
 
 ### 0.1 Festgelegter Rahmen
 
