@@ -71,29 +71,76 @@ Regler ziehen, `progress` scrubben.
 
 ## Schnellstart
 
-Abhängigkeiten des Frontends installieren:
+Voraussetzungen: **Node ≥ 20**, **[uv](https://docs.astral.sh/uv/)** (holt Python 3.12 selbst),
+und für die Testclips **ffmpeg**.
 
 ```bash
 npm install
+npm run models        # Checkpoints holen (nicht im Repo, siehe unten)
+npm run testclips     # zwei Testclips erzeugen, braucht ffmpeg
 ```
 
-Engine starten (uv holt Python 3.12 selbst, falls nicht vorhanden):
+Engine starten — der Befehl unterscheidet sich je Plattform, weil der Beschleuniger
+ein anderer ist:
 
 ```bash
-npm run engine
+npm run engine:mac
 ```
 
-Web-App starten (zweites Terminal):
+```bash
+npm run engine:win
+```
+
+Web-App im zweiten Terminal, danach `http://localhost:5173`:
 
 ```bash
 npm run dev
 ```
 
-Umgebung prüfen:
+Umgebung prüfen (Node, Engine, verfügbare Inferenz-Backends):
 
 ```bash
 npm run doctor
 ```
+
+### Plattformen
+
+Der Code ist überall derselbe; nur der Beschleuniger wechselt. Die Engine meldet
+über `/device`, worauf sie tatsächlich läuft.
+
+| | Windows (Entwicklungsmaschine) | macOS |
+|---|---|---|
+| Inferenz | PyTorch + ROCm (AMD), ONNX Runtime + DirectML | ONNX Runtime + CoreML, optional PyTorch mit MPS |
+| Extra | `--extra rocm --extra directml` | `--extra coreml`, optional `--extra mps` |
+| Tiefenkarten | ✅ gemessen: 84 ms bei 720p | ✅ derselbe ONNX-Pfad, ungemessen |
+| Segmentierung (SAM 2) | ✅ gemessen | ⬜ braucht `--extra mps`, ungemessen |
+| Web-App, Felder, Transitions | ✅ | ✅ reines WebGL2, plattformunabhängig |
+
+Die ROCm-Abhängigkeiten sind auf `sys_platform == 'win32'` beschränkt — auf einem Mac
+werden sie übersprungen statt den Installationslauf abzubrechen.
+
+**Auf dem Mac ungemessen:** Alle Zahlen in den ADRs stammen von einer AMD RX 7600 XT
+unter Windows. Sie sagen nichts über Apple Silicon. Wer dort arbeitet, misst neu —
+`python scripts/spike/spike_inference.py env` ist der Einstieg.
+
+### Schrift
+
+Die Oberfläche ist auf **Endless** gesetzt — eine Schrift mit 94 Glyphen, reines ASCII.
+Die Datei liegt **nicht im Repo**: sie trägt keine Lizenzangabe, und fremde Schriften
+weiterzugeben ist keine Kleinigkeit. Wer sie hat, legt sie nach
+`apps/studio-web/public/fonts/Endless.ttf`; ist sie systemweit installiert, findet die
+App sie ohnehin über `local('Endless')`.
+
+Ohne sie fällt die Oberfläche auf die Systemschrift zurück und funktioniert vollständig
+— nur das Satzbild ist ein anderes. Die Beschriftung ist bewusst umlautfrei gehalten,
+weil Endless keine Umlaute hat; das bleibt so, damit beide Fälle gleich aussehen.
+
+### Checkpoints
+
+Modelle liegen **nicht** im Repo: mehrere hundert MB, und ihre Lizenzen erlauben eine
+Weitergabe nicht durchgehend. `npm run models` holt genau die, deren Lizenz geprüft und
+freigegeben ist. Jedes hat eine Datei unter [docs/licenses/](docs/licenses/) — ohne die
+wird nichts eingebunden.
 
 ## M0-Abnahme
 

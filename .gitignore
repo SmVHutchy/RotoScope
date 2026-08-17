@@ -19,6 +19,9 @@ models/
 out/
 cache/
 apps/studio-web/public/dev-*
+
+# Fremde Schrift ohne Lizenzangabe: bleibt lokal, siehe docs/licenses/README.md
+apps/studio-web/public/fonts/
 scripts/spike/results-*.json
 .frames/
 *.log

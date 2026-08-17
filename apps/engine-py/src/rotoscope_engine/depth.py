@@ -34,7 +34,12 @@ class DepthEstimator:
         if not model_path.exists():
             raise FileNotFoundError(f"Tiefenmodell fehlt: {model_path}")
 
-        providers = [p for p in ("DmlExecutionProvider", "CPUExecutionProvider") if p in ort.get_available_providers()]
+        # Reihenfolge ist die Vorliebe: DirectML auf Windows, CoreML auf dem Mac,
+        # CPU als letzte Zuflucht. Der Code bleibt derselbe -- nur der Beschleuniger
+        # wechselt mit der Plattform.
+        bevorzugt = ("DmlExecutionProvider", "CoreMLExecutionProvider", "CPUExecutionProvider")
+        verfuegbar = ort.get_available_providers()
+        providers = [p for p in bevorzugt if p in verfuegbar]
         started = time.perf_counter()
         self.session = ort.InferenceSession(str(model_path), providers=providers)
         self.provider = self.session.get_providers()[0]

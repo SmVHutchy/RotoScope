@@ -15,7 +15,11 @@
     "engine": "uv run --project apps/engine-py engine",
     "rotoc": "node apps/cli/bin/rotoc.js",
     "doctor": "node apps/cli/bin/rotoc.js doctor",
-    "test": "node --test --experimental-strip-types packages/*/test/*.test.ts"
+    "test": "node --test --experimental-strip-types packages/*/test/*.test.ts",
+    "models": "node scripts/fetch-models.mjs",
+    "engine:mac": "uv sync --project apps/engine-py --extra coreml && uv run --project apps/engine-py engine",
+    "engine:win": "uv sync --project apps/engine-py --extra rocm --extra directml && uv run --project apps/engine-py engine",
+    "testclips": "node scripts/make-testclips.mjs"
   },
   "engines": {
     "node": ">=20"

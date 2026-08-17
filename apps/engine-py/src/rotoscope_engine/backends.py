@@ -55,6 +55,11 @@ def _probe_torch() -> list[BackendInfo]:
     if torch.cuda.is_available():
         devices = [torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())]
 
+    # Apple Silicon meldet sich nicht ueber die CUDA-API, sondern als eigenes Backend.
+    mps = getattr(getattr(torch, "backends", None), "mps", None)
+    if mps is not None and mps.is_available():
+        out.append(BackendInfo("torch-mps", True, f"torch {version} auf Apple Silicon", ["mps"]))
+
     # Auf ROCm-Builds meldet sich AMD-Hardware ueber die CUDA-API. Der Unterschied
     # steckt in torch.version.hip -- nicht im Device-Namen.
     if hip:
@@ -87,10 +92,11 @@ def _probe_onnxruntime() -> list[BackendInfo]:
     import onnxruntime as ort  # noqa: PLC0415
 
     providers = ort.get_available_providers()
+    beschleunigt = [p for p in ("DmlExecutionProvider", "CoreMLExecutionProvider") if p in providers]
     return [
         BackendInfo(
-            "onnx-directml",
-            "DmlExecutionProvider" in providers,
+            "onnx-" + (beschleunigt[0].replace("ExecutionProvider", "").lower() if beschleunigt else "cpu"),
+            bool(beschleunigt),
             f"onnxruntime {ort.__version__}, Provider: {', '.join(providers)}",
         )
     ]
@@ -127,7 +133,8 @@ def probe() -> dict[str, Any]:
         "backends": [asdict(b) for b in backends],
         "preferred": preferred,
         "note": (
-            "Zielhardware ist eine AMD RX 7600 XT (gfx1102) unter Windows. "
-            "Kein CUDA, kein TensorRT — siehe PROJECT_PROMPT.md §4.5."
+            "Entwickelt auf einer AMD RX 7600 XT (gfx1102) unter Windows: kein CUDA, "
+            "kein TensorRT (PROJECT_PROMPT.md §4.5). Auf macOS uebernehmen CoreML "
+            "und MPS dieselbe Rolle — der Code bleibt gleich."
         ),
     }

@@ -19,19 +19,32 @@ engine = "rotoscope_engine.__main__:main"
 
 # Pfad A. Direkte URLs statt Index, weil AMD die Windows-Wheels nur so ausliefert.
 # Versionen entsprechen der Messung in ADR 001; Aenderung heisst neu messen.
+#
+# Die Marker sind kein Zierrat: das sind win_amd64-Wheels. Ohne sie bricht
+# `uv sync --extra rocm` auf einem Mac ab, statt die Gruppe einfach zu ueberspringen.
 rocm = [
     # torch fordert rocm[libraries]==7.2.1 an -- das liegt nicht auf PyPI, sondern
     # nur bei AMD. Ohne diese vier Zeilen ist die Aufloesung unloesbar.
-    "rocm[libraries] @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm-7.2.1.tar.gz",
-    "rocm-sdk-core @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm_sdk_core-7.2.1-py3-none-win_amd64.whl",
-    "rocm-sdk-devel @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm_sdk_devel-7.2.1-py3-none-win_amd64.whl",
-    "rocm-sdk-libraries-custom @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm_sdk_libraries_custom-7.2.1-py3-none-win_amd64.whl",
-    "torch @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/torch-2.9.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl",
-    "torchvision @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/torchvision-0.24.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl",
+    "rocm[libraries] @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm-7.2.1.tar.gz ; sys_platform == 'win32'",
+    "rocm-sdk-core @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm_sdk_core-7.2.1-py3-none-win_amd64.whl ; sys_platform == 'win32'",
+    "rocm-sdk-devel @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm_sdk_devel-7.2.1-py3-none-win_amd64.whl ; sys_platform == 'win32'",
+    "rocm-sdk-libraries-custom @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm_sdk_libraries_custom-7.2.1-py3-none-win_amd64.whl ; sys_platform == 'win32'",
+    "torch @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/torch-2.9.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl ; sys_platform == 'win32'",
+    "torchvision @ https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/torchvision-0.24.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl ; sys_platform == 'win32'",
 ]
 
-# Pfad B.
-directml = ["onnxruntime-directml>=1.20", "numpy>=1.26"]
+# Pfad B, Windows: DirectX 12.
+directml = ["onnxruntime-directml>=1.20 ; sys_platform == 'win32'", "numpy>=1.26"]
+
+# Pfad B, macOS: dasselbe onnxruntime, nur mit CoreML statt DirectML als Beschleuniger.
+# Damit laufen Tiefenkarten auf einem Mac ohne jede Aenderung am Code.
+coreml = ["onnxruntime>=1.20 ; sys_platform == 'darwin'", "numpy>=1.26"]
+
+# Torch auf Apple Silicon: normale Wheels, Beschleunigung ueber MPS.
+mps = [
+    "torch>=2.5 ; sys_platform == 'darwin'",
+    "torchvision>=0.20 ; sys_platform == 'darwin'",
+]
 
 [build-system]
 requires = ["hatchling"]
