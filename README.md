@@ -1,6 +1,10 @@
 <div align="center">
 
-# RotoScope Studio
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/media/banner-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/media/banner-light.png">
+  <img alt="RotoScope Studio — Videoübergänge, generative Felder und KI-gestütztes Rotoscoping" src="docs/media/banner-dark.png" width="820">
+</picture>
 
 **Lokales Werkzeug für Videoübergänge, generative Felder und KI-gestütztes Rotoscoping — offline, mit jedem Parameter offen.**
 
